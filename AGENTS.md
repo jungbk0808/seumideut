@@ -17,6 +17,12 @@ Before implementation or product decisions, read these files in order:
 
 Use the PRD as the behavioral source of truth, the wireframe as the UI structure source of truth, and the backlog as the implementation sequence.
 
+## Development Workflow
+
+Git branch and commit rules live in `docs/git-workflow.md`.
+
+When a session needs to create a branch, commit changes, or review Git history, read `docs/git-workflow.md` after the planning documents above. The `docs/README.md` file is the index for development operation documents, while product planning artifacts stay under `idea2planning/outputs/`.
+
 ## Design Reference
 
 Use this Figma file when implementing or reviewing UI:
