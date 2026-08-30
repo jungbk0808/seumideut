@@ -12,6 +12,7 @@ import {
   type Note,
   type NoteStore,
   NOTE_STORE_CHANGED_EVENT,
+  NOTE_SCHEMA_VERSION,
   emptyNoteStore,
   loadNoteStore,
   saveNoteStore,
@@ -50,7 +51,7 @@ function createEmptyNote(): Note {
     updatedAt: now,
     deletedAt: null,
     isPinned: false,
-    schemaVersion: 1,
+    schemaVersion: NOTE_SCHEMA_VERSION,
   };
 }
 
@@ -117,7 +118,12 @@ function getSaveStatusText(saveStatus: SaveStatus) {
 
 function toPersistableStore(notes: Note[], selectedNoteId: string): NoteStore {
   const persistableNotes = sortByUpdatedAt(
-    notes.filter((note) => note.deletedAt === null && isPersistableNote(note)),
+    notes.filter(
+      (note) =>
+        note.deletedAt !== null ||
+        isPersistableNote(note) ||
+        note.id === selectedNoteId,
+    ),
   );
   const persistableSelectedNoteId = persistableNotes.some(
     (note) => note.id === selectedNoteId,
