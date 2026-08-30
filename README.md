@@ -16,7 +16,7 @@ idea2planning/ 기획 산출물
 - 브랜치/커밋 규칙: `docs/git-workflow.md` (사람 작업과 Codex 작업의 브랜치 prefix 구분 포함)
 - 문서 인덱스: `docs/README.md`
 
-다른 세션에서 Git 작업을 시작할 때는 루트 `AGENTS.md`와 함께 `docs/git-workflow.md`를 확인합니다.
+다른 세션에서 Git 작업을 시작할 때는 루트 `AGENTS.md`와 함께 `docs/git-workflow.md`를 확인합니다. Codex가 새 작업을 맡을 때는 작업 전용 `codex/<type>/<short-topic>` 브랜치를 먼저 만드는 규칙도 이 문서에 포함되어 있습니다.
 
 ## 개발 명령
 

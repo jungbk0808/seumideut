@@ -23,6 +23,8 @@ Git branch and commit rules live in `docs/git-workflow.md`.
 
 When a session needs to create a branch, commit changes, or review Git history, read `docs/git-workflow.md` after the planning documents above. The `docs/README.md` file is the index for development operation documents, while product planning artifacts stay under `idea2planning/outputs/`.
 
+When the user gives Codex a new single implementation or documentation task, create a dedicated `codex/<type>/<short-topic>` branch before making file changes. Check `git status --short --branch` first, reuse the current branch only when it is already the right task branch or the user explicitly asks to stay on it, and report the branch name in the final response.
+
 ## Design Reference
 
 Use this Figma file when implementing or reviewing UI:
