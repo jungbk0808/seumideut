@@ -310,6 +310,20 @@ button {
   white-space: nowrap;
 }
 
+.status-retry-button {
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #a03a3a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-retry-button:hover {
+  text-decoration: underline;
+}
+
 .full-status-row {
   padding-top: 26px;
 }

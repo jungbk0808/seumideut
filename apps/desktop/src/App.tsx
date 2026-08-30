@@ -1,58 +1,35 @@
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { Pin, Plus, Search, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  type Note,
+  type NoteStore,
+  NOTE_STORE_CHANGED_EVENT,
+  emptyNoteStore,
+  loadNoteStore,
+  saveNoteStore,
+} from "./storage";
+import { openFullMemoWindow, openWidgetMemoWindow } from "./windows";
 
 type ViewMode = "full" | "widget";
-
-type Note = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-  isPinned: boolean;
-  schemaVersion: number;
+type SaveStatus = "loading" | "idle" | "saving" | "saved" | "failed";
+type LaunchContext = {
+  viewMode: ViewMode;
+  requestedNoteId: string | null;
+  forceNewNote: boolean;
 };
 
 const WINDOW_SIZES: Record<ViewMode, { width: number; height: number }> = {
   full: { width: 1080, height: 720 },
   widget: { width: 430, height: 520 },
 };
-
-const initialNotes: Note[] = [
-  {
-    id: "note-1",
-    title: "오늘 회의 메모",
-    content:
-      "- MVP는 1-2주 안에\n- 글자수 카운터 필수\n- 상단 고정 먼저 구현\n\n작업 흐름 위에 가볍게 얹히는 작은 메모장.",
-    createdAt: "2026-08-27T00:00:00.000Z",
-    updatedAt: "2026-08-27T00:00:00.000Z",
-    deletedAt: null,
-    isPinned: false,
-    schemaVersion: 1,
-  },
-  {
-    id: "note-2",
-    title: "블로그 초안",
-    content: "짧은 문장 글자수 확인",
-    createdAt: "2026-08-26T00:00:00.000Z",
-    updatedAt: "2026-08-26T00:00:00.000Z",
-    deletedAt: null,
-    isPinned: false,
-    schemaVersion: 1,
-  },
-  {
-    id: "note-3",
-    title: "할 일",
-    content: "상단 고정 먼저 구현",
-    createdAt: "2026-08-25T00:00:00.000Z",
-    updatedAt: "2026-08-25T00:00:00.000Z",
-    deletedAt: null,
-    isPinned: false,
-    schemaVersion: 1,
-  },
-];
 
 function countWithoutWhitespace(value: string) {
   return Array.from(value.replace(/\s/g, "")).length;
@@ -77,12 +54,48 @@ function createEmptyNote(): Note {
   };
 }
 
-function formatRelativeTime(note: Note) {
-  if (note.id === "note-1") return "방금 전";
-  if (note.id === "note-2") return "어제";
-  if (note.id === "note-3") return "2일 전";
+function getLaunchContext(): LaunchContext {
+  const params = new URLSearchParams(window.location.search);
 
-  return "방금 전";
+  return {
+    viewMode: params.get("view") === "full" ? "full" : "widget",
+    requestedNoteId: params.get("noteId"),
+    forceNewNote: params.get("new") === "1",
+  };
+}
+
+function isTauriRuntime() {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function isPersistableNote(note: Note) {
+  return Boolean(note.title.trim() || note.content.trim());
+}
+
+function sortByUpdatedAt(notes: Note[]) {
+  return [...notes].sort(
+    (firstNote, secondNote) =>
+      new Date(secondNote.updatedAt).getTime() -
+      new Date(firstNote.updatedAt).getTime(),
+  );
+}
+
+function formatRelativeTime(note: Note) {
+  const updatedTime = new Date(note.updatedAt).getTime();
+  const diffInMs = Date.now() - updatedTime;
+
+  if (!Number.isFinite(updatedTime) || diffInMs < 60_000) return "방금 전";
+
+  const diffInMinutes = Math.floor(diffInMs / 60_000);
+  if (diffInMinutes < 60) return `${diffInMinutes}분 전`;
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}시간 전`;
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays === 1) return "어제";
+
+  return `${diffInDays}일 전`;
 }
 
 function getNoteTitle(note: Note) {
@@ -93,11 +106,180 @@ function getPreview(note: Note) {
   return note.content.trim().split(/\s*\n+\s*/)[0] || "새 메모";
 }
 
+function getSaveStatusText(saveStatus: SaveStatus) {
+  if (saveStatus === "loading") return "불러오는 중...";
+  if (saveStatus === "saving") return "저장 중...";
+  if (saveStatus === "saved") return "저장됨";
+  if (saveStatus === "failed") return "저장 실패 · 재시도";
+
+  return "저장 전";
+}
+
+function toPersistableStore(notes: Note[], selectedNoteId: string): NoteStore {
+  const persistableNotes = sortByUpdatedAt(
+    notes.filter((note) => note.deletedAt === null && isPersistableNote(note)),
+  );
+  const persistableSelectedNoteId = persistableNotes.some(
+    (note) => note.id === selectedNoteId,
+  )
+    ? selectedNoteId
+    : (persistableNotes[0]?.id ?? null);
+
+  return {
+    ...emptyNoteStore,
+    notes: persistableNotes,
+    selectedNoteId: persistableSelectedNoteId,
+  };
+}
+
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>("full");
-  const [notes, setNotes] = useState<Note[]>(initialNotes);
-  const [selectedNoteId, setSelectedNoteId] = useState(initialNotes[0]?.id ?? "");
+  const [launchContext] = useState(getLaunchContext);
+  const viewMode = launchContext.viewMode;
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [selectedNoteId, setSelectedNoteId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
+  const [hasLoadedStore, setHasLoadedStore] = useState(false);
+  const [hasPendingSave, setHasPendingSave] = useState(false);
+  const [saveAttempt, setSaveAttempt] = useState(0);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveVersionRef = useRef(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const restoreStore = async () => {
+      try {
+        const store = await loadNoteStore();
+        const restoredNotes = sortByUpdatedAt(
+          store.notes.filter((note) => note.deletedAt === null),
+        );
+        const fallbackSelectedNoteId =
+          launchContext.requestedNoteId ?? store.selectedNoteId ?? restoredNotes[0]?.id;
+        const shouldCreateDraft =
+          launchContext.viewMode === "widget" &&
+          (launchContext.forceNewNote || restoredNotes.length === 0);
+        const draftNote = shouldCreateDraft ? createEmptyNote() : null;
+        const startupNotes = draftNote ? [draftNote, ...restoredNotes] : restoredNotes;
+        const startupSelectedNoteId = draftNote
+          ? draftNote.id
+          : startupNotes.find((note) => note.id === fallbackSelectedNoteId)?.id ?? "";
+
+        if (!isMounted) return;
+
+        setNotes(startupNotes);
+        setSelectedNoteId(startupSelectedNoteId);
+        setSaveStatus(restoredNotes.length > 0 ? "saved" : "idle");
+      } catch {
+        const fallbackNote = createEmptyNote();
+
+        if (!isMounted) return;
+
+        setNotes([fallbackNote]);
+        setSelectedNoteId(fallbackNote.id);
+        setSaveStatus("failed");
+      } finally {
+        if (isMounted) {
+          setHasLoadedStore(true);
+        }
+      }
+    };
+
+    void restoreStore();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedStore) return;
+
+    let unlistenTauriEvent: (() => void) | null = null;
+    let isSubscribed = true;
+
+    const reloadStoredNotes = async () => {
+      if (hasPendingSave) return;
+
+      try {
+        const store = await loadNoteStore();
+        const restoredNotes = sortByUpdatedAt(
+          store.notes.filter((note) => note.deletedAt === null),
+        );
+        const fallbackSelectedNoteId =
+          selectedNoteId ||
+          launchContext.requestedNoteId ||
+          store.selectedNoteId ||
+          restoredNotes[0]?.id;
+        const nextSelectedNoteId =
+          restoredNotes.find((note) => note.id === fallbackSelectedNoteId)?.id ?? "";
+
+        if (!isSubscribed) return;
+
+        setNotes(restoredNotes);
+        setSelectedNoteId(nextSelectedNoteId);
+      } catch {
+        if (isSubscribed) {
+          setSaveStatus("failed");
+        }
+      }
+    };
+
+    const handleBrowserStorageChange = () => {
+      void reloadStoredNotes();
+    };
+
+    if (isTauriRuntime()) {
+      void listen(NOTE_STORE_CHANGED_EVENT, () => {
+        void reloadStoredNotes();
+      }).then((unlisten) => {
+        unlistenTauriEvent = unlisten;
+      });
+    }
+
+    window.addEventListener(
+      NOTE_STORE_CHANGED_EVENT,
+      handleBrowserStorageChange,
+    );
+    window.addEventListener("storage", handleBrowserStorageChange);
+
+    return () => {
+      isSubscribed = false;
+      unlistenTauriEvent?.();
+      window.removeEventListener(
+        NOTE_STORE_CHANGED_EVENT,
+        handleBrowserStorageChange,
+      );
+      window.removeEventListener("storage", handleBrowserStorageChange);
+    };
+  }, [
+    hasLoadedStore,
+    hasPendingSave,
+    launchContext.requestedNoteId,
+    selectedNoteId,
+  ]);
+
+  useEffect(() => {
+    if (viewMode !== "full") return;
+
+    let unlistenSelectEvent: (() => void) | null = null;
+    let isSubscribed = true;
+
+    if (isTauriRuntime()) {
+      void listen<{ noteId: string }>("memo-select-note", ({ payload }) => {
+        if (isSubscribed && payload.noteId) {
+          setSelectedNoteId(payload.noteId);
+        }
+      }).then((unlisten) => {
+        unlistenSelectEvent = unlisten;
+      });
+    }
+
+    return () => {
+      isSubscribed = false;
+      unlistenSelectEvent?.();
+    };
+  }, [viewMode]);
 
   useEffect(() => {
     const resizeWindow = async () => {
@@ -115,20 +297,60 @@ export default function App() {
     void resizeWindow();
   }, [viewMode]);
 
+  useEffect(() => {
+    if (!hasLoadedStore || !hasPendingSave) return;
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    setSaveStatus("saving");
+
+    const saveVersion = saveVersionRef.current + 1;
+    saveVersionRef.current = saveVersion;
+
+    saveTimerRef.current = window.setTimeout(() => {
+      const store = toPersistableStore(notes, selectedNoteId);
+
+      void saveNoteStore(store)
+        .then(() => {
+          if (saveVersionRef.current !== saveVersion) return;
+
+          setSaveStatus("saved");
+          setHasPendingSave(false);
+        })
+        .catch(() => {
+          if (saveVersionRef.current !== saveVersion) return;
+
+          setSaveStatus("failed");
+        });
+    }, 500);
+
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [hasLoadedStore, hasPendingSave, notes, saveAttempt, selectedNoteId]);
+
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
+  const activeNotes = useMemo(
+    () => sortByUpdatedAt(notes.filter((note) => note.deletedAt === null)),
+    [notes],
+  );
 
   const filteredNotes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    if (!query) return notes;
+    if (!query) return activeNotes;
 
-    return notes.filter((note) => {
+    return activeNotes.filter((note) => {
       return (
         note.title.toLowerCase().includes(query) ||
         note.content.toLowerCase().includes(query)
       );
     });
-  }, [notes, searchQuery]);
+  }, [activeNotes, searchQuery]);
 
   const counts = useMemo(
     () => ({
@@ -137,6 +359,11 @@ export default function App() {
     }),
     [selectedNote?.content],
   );
+
+  const markStoreDirty = () => {
+    setHasPendingSave(true);
+    setSaveStatus("saving");
+  };
 
   const updateSelectedNote = (updates: Partial<Pick<Note, "title" | "content">>) => {
     if (!selectedNote) return;
@@ -152,30 +379,109 @@ export default function App() {
           : note,
       ),
     );
+    markStoreDirty();
   };
 
   const handleCreateNote = () => {
-    const nextNote = createEmptyNote();
+    void openWidgetMemoWindow();
+  };
 
-    setNotes((currentNotes) => [nextNote, ...currentNotes]);
-    setSelectedNoteId(nextNote.id);
-    setSearchQuery("");
-    setViewMode("widget");
+  const handleSelectNote = (noteId: string) => {
+    setSelectedNoteId(noteId);
+    setHasPendingSave(true);
+  };
+
+  const handleRetrySave = () => {
+    setHasPendingSave(true);
+    setSaveAttempt((currentAttempt) => currentAttempt + 1);
+  };
+
+  const persistCurrentStore = async () => {
+    if (!hasLoadedStore) return;
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    try {
+      setSaveStatus("saving");
+      await saveNoteStore(toPersistableStore(notes, selectedNoteId));
+      setHasPendingSave(false);
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("failed");
+    }
+  };
+
+  const handleOpenFullMemoWindow = async () => {
+    if (hasPendingSave) {
+      await persistCurrentStore();
+    }
+
+    await openFullMemoWindow(selectedNote?.id);
+  };
+
+  const handleOpenSelectedWidgetWindow = async () => {
+    if (hasPendingSave) {
+      await persistCurrentStore();
+    }
+
+    await openWidgetMemoWindow(selectedNote?.id);
   };
 
   const handleCloseWindow = async () => {
+    if (hasPendingSave) {
+      await persistCurrentStore();
+    }
+
     try {
-      await getCurrentWindow().close();
+      await getCurrentWindow().destroy();
     } catch {
+      try {
+        await getCurrentWindow().close();
+      } catch {
+        window.close();
+      }
+    }
+  };
+
+  const handleStartWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!isTauriRuntime() || event.button !== 0) return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, textarea")) return;
+
+    void getCurrentWindow().startDragging();
+  };
+
+  const handleBrowserCloseWindow = () => {
+    if (!isTauriRuntime()) {
       window.close();
     }
   };
+
+  const saveStatusContent =
+    saveStatus === "failed" ? (
+      <button
+        className="status-retry-button"
+        type="button"
+        onClick={handleRetrySave}
+      >
+        {getSaveStatusText(saveStatus)}
+      </button>
+    ) : (
+      <span>{getSaveStatusText(saveStatus)}</span>
+    );
 
   if (viewMode === "widget") {
     return (
       <main className="app-shell widget-mode">
         <section className="widget-view" aria-label="위젯형 빠른 메모">
-          <header className="app-header widget-header">
+          <header
+            className="app-header widget-header"
+            data-tauri-drag-region
+            onPointerDown={handleStartWindowDrag}
+          >
             <h1 data-tauri-drag-region>Memo</h1>
             <div className="drag-region" data-tauri-drag-region />
             <div className="header-actions">
@@ -194,7 +500,11 @@ export default function App() {
                 className="icon-button close-button"
                 type="button"
                 aria-label="닫기"
-                onClick={handleCloseWindow}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  void handleCloseWindow();
+                  handleBrowserCloseWindow();
+                }}
               >
                 <X size={16} aria-hidden="true" />
               </button>
@@ -220,7 +530,7 @@ export default function App() {
           </div>
 
           <div className="status-row" aria-live="polite">
-            <span>저장 전</span>
+            {saveStatusContent}
             <span>
               공백 포함 {counts.withSpaces}자 · 제외 {counts.withoutSpaces}자
             </span>
@@ -230,7 +540,9 @@ export default function App() {
             <button
               className="text-button"
               type="button"
-              onClick={() => setViewMode("full")}
+              onClick={() => {
+                void handleOpenFullMemoWindow();
+              }}
             >
               전체 메모 열기
             </button>
@@ -246,14 +558,20 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="full-view" aria-label="전체 메모 관리">
-        <header className="app-header full-header">
+        <header
+          className="app-header full-header"
+          data-tauri-drag-region
+          onPointerDown={handleStartWindowDrag}
+        >
           <h1 data-tauri-drag-region>전체 메모</h1>
           <div className="drag-region" data-tauri-drag-region />
           <div className="header-actions">
             <button
               className="text-button"
               type="button"
-              onClick={() => selectedNote && setViewMode("widget")}
+              onClick={() => {
+                void handleOpenSelectedWidgetWindow();
+              }}
             >
               위젯으로
             </button>
@@ -267,7 +585,11 @@ export default function App() {
               className="icon-button close-button"
               type="button"
               aria-label="닫기"
-              onClick={handleCloseWindow}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => {
+                void handleCloseWindow();
+                handleBrowserCloseWindow();
+              }}
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -298,7 +620,7 @@ export default function App() {
                   }`}
                   type="button"
                   key={note.id}
-                  onClick={() => setSelectedNoteId(note.id)}
+                  onClick={() => handleSelectNote(note.id)}
                 >
                   <strong>{getNoteTitle(note)}</strong>
                   <span>{formatRelativeTime(note)}</span>
@@ -341,7 +663,7 @@ export default function App() {
               />
 
               <div className="full-status-row" aria-live="polite">
-                <span>저장 전</span>
+                {saveStatusContent}
                 <span>
                   공백 포함 {counts.withSpaces}자 · 제외 {counts.withoutSpaces}자
                 </span>
