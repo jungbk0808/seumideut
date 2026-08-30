@@ -89,12 +89,13 @@ codex/refactor/note-editor-state
 예시:
 
 ```text
-feat(storage): add local note repository
-fix(counter): exclude whitespace from body count
-docs(workflow): add branch and commit rules
+feat(storage): 로컬 메모 저장소 추가
+fix(counter): 공백 제외 글자수 계산 수정
+docs(workflow): 브랜치와 커밋 규칙 추가
 ```
 
 `type`은 브랜치 규칙의 type과 동일하게 사용합니다.
+`scope`는 변경 영역을 나타내는 짧은 영어 식별자로 유지합니다.
 
 권장 `scope`:
 
@@ -113,10 +114,12 @@ docs(workflow): add branch and commit rules
 
 요약 작성 규칙:
 
-- 영어 type/scope를 쓰고, summary는 영어 또는 한국어를 사용할 수 있습니다.
+- `type`과 `scope`는 영어 식별자를 사용합니다.
+- `summary`는 한국어로 작성합니다.
+- 커밋 본문도 필요한 경우 한국어로 작성합니다.
 - summary 끝에 마침표를 붙이지 않습니다.
 - 무엇이 바뀌었는지 50자 안팎으로 적습니다.
-- `update`, `fix stuff`, `wip`처럼 의미가 흐린 표현은 피합니다.
+- `수정`, `작업`, `wip`처럼 의미가 흐린 표현은 피합니다.
 
 ## 커밋 본문과 푸터
 
@@ -125,9 +128,9 @@ docs(workflow): add branch and commit rules
 맥락이 필요한 변경은 본문에 이유와 검증을 짧게 남깁니다.
 
 ```text
-feat(storage): add local note repository
+feat(storage): 로컬 메모 저장소 추가
 
-Store notes with schemaVersion so later sync and migration work have a stable base.
+향후 동기화와 마이그레이션을 고려해 schemaVersion을 포함한 메모 저장 구조를 추가한다.
 
 Refs: TASK-006
 Test: npm run build
