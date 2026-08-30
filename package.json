@@ -1,0 +1,16 @@
+{
+  "name": "memo-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:desktop": "npm --prefix apps/desktop run dev",
+    "build": "npm --prefix apps/desktop run build",
+    "build:desktop": "npm --prefix apps/desktop run build",
+    "preview:desktop": "npm --prefix apps/desktop run preview",
+    "desktop:tauri": "npm --prefix apps/desktop run tauri --",
+    "desktop:tauri:dev": "npm --prefix apps/desktop run tauri:dev",
+    "desktop:tauri:info": "npm --prefix apps/desktop run tauri:info",
+    "tauri:desktop": "npm run desktop:tauri --"
+  }
+}
