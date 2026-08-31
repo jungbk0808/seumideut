@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { CodeXml, Newspaper, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
@@ -17,9 +17,11 @@ import {
   loadNoteStore,
   saveNoteStore,
 } from "./storage";
+import { MarkdownRichEditor } from "./MarkdownRichEditor";
 import { openFullMemoWindow, openWidgetMemoWindow } from "./windows";
 
 type ViewMode = "full" | "widget";
+type MarkdownViewMode = "preview" | "source";
 type SaveStatus = "loading" | "idle" | "saving" | "saved" | "failed";
 type LaunchContext = {
   viewMode: ViewMode;
@@ -116,6 +118,37 @@ function getSaveStatusText(saveStatus: SaveStatus) {
   return "저장 전";
 }
 
+function MarkdownViewToggle({
+  mode,
+  onModeChange,
+}: {
+  mode: MarkdownViewMode;
+  onModeChange: (mode: MarkdownViewMode) => void;
+}) {
+  return (
+    <div className="view-toggle" aria-label="마크다운 보기 방식">
+      <button
+        className={mode === "preview" ? "selected" : ""}
+        type="button"
+        aria-label="미리보기"
+        title="미리보기"
+        onClick={() => onModeChange("preview")}
+      >
+        <Newspaper size={16} aria-hidden="true" />
+      </button>
+      <button
+        className={mode === "source" ? "selected" : ""}
+        type="button"
+        aria-label="코드 보기"
+        title="코드 보기"
+        onClick={() => onModeChange("source")}
+      >
+        <CodeXml size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function toPersistableStore(notes: Note[], selectedNoteId: string): NoteStore {
   const persistableNotes = sortByUpdatedAt(
     notes.filter(
@@ -145,6 +178,8 @@ export default function App() {
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
+  const [markdownViewMode, setMarkdownViewMode] =
+    useState<MarkdownViewMode>("preview");
   const [hasLoadedStore, setHasLoadedStore] = useState(false);
   const [hasPendingSave, setHasPendingSave] = useState(false);
   const [saveAttempt, setSaveAttempt] = useState(0);
@@ -526,13 +561,13 @@ export default function App() {
               aria-label="메모 제목"
               autoFocus
             />
-            <textarea
-              className="widget-body-input"
-              value={selectedNote?.content ?? ""}
-              onChange={(event) => updateSelectedNote({ content: event.target.value })}
-              placeholder="여기에 바로 메모를 입력하세요."
-              aria-label="메모 본문"
-            />
+            <div className="widget-body-shell">
+              <MarkdownRichEditor
+                className="widget-markdown-editor"
+                content={selectedNote?.content ?? ""}
+                onChange={(content) => updateSelectedNote({ content })}
+              />
+            </div>
           </div>
 
           <div className="status-row" aria-live="polite">
@@ -581,11 +616,14 @@ export default function App() {
             >
               위젯으로
             </button>
-            <button className="text-button" type="button">
-              항상 위
-            </button>
-            <button className="text-button" type="button" onClick={handleCreateNote}>
-              새 메모
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="새 메모"
+              title="새 메모"
+              onClick={handleCreateNote}
+            >
+              <Plus size={16} aria-hidden="true" />
             </button>
             <button
               className="icon-button close-button"
@@ -643,7 +681,7 @@ export default function App() {
           {selectedNote ? (
             <>
               <label className="field-label" htmlFor="full-title">
-                제목 입력
+                제목
               </label>
               <input
                 id="full-title"
@@ -655,18 +693,38 @@ export default function App() {
                 placeholder="제목 없음"
               />
 
-              <label className="field-label body-label" htmlFor="full-body">
-                본문
-              </label>
-              <textarea
-                id="full-body"
-                className="full-body-input"
-                value={selectedNote.content}
-                onChange={(event) =>
-                  updateSelectedNote({ content: event.target.value })
-                }
-                placeholder="여기에 바로 메모를 입력하세요."
-              />
+              <span className="field-label body-label">본문</span>
+
+              {markdownViewMode === "source" ? (
+                <textarea
+                  id="full-body"
+                  className="full-body-input"
+                  value={selectedNote.content}
+                  onChange={(event) =>
+                    updateSelectedNote({ content: event.target.value })
+                  }
+                  placeholder="여기에 바로 메모를 입력하세요."
+                />
+              ) : (
+                <MarkdownRichEditor
+                  className="full-body-preview"
+                  content={selectedNote.content}
+                  onChange={(content) => updateSelectedNote({ content })}
+                  editorId="full-body"
+                />
+              )}
+
+              <div className="editor-actions">
+                <MarkdownViewToggle
+                  mode={markdownViewMode}
+                  onModeChange={setMarkdownViewMode}
+                />
+
+                <button className="full-delete-button" type="button">
+                  <Trash2 size={14} aria-hidden="true" />
+                  삭제
+                </button>
+              </div>
 
               <div className="full-status-row" aria-live="polite">
                 {saveStatusContent}
@@ -674,11 +732,6 @@ export default function App() {
                   공백 포함 {counts.withSpaces}자 · 제외 {counts.withoutSpaces}자
                 </span>
               </div>
-
-              <button className="full-delete-button" type="button">
-                <Trash2 size={14} aria-hidden="true" />
-                삭제
-              </button>
             </>
           ) : (
             <div className="empty-editor">
