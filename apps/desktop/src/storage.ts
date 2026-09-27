@@ -75,7 +75,7 @@ function normalizeNoteStore(value: unknown): NoteStore {
     : [];
   const selectedNoteId =
     typeof value.selectedNoteId === "string" &&
-    notes.some((note) => note.id === value.selectedNoteId)
+    notes.some((note) => note.id === value.selectedNoteId && note.deletedAt === null)
       ? value.selectedNoteId
       : null;
 
@@ -84,6 +84,31 @@ function normalizeNoteStore(value: unknown): NoteStore {
     notes,
     selectedNoteId,
   };
+}
+
+function mergeNoteStores(existingStore: NoteStore, incomingStore: NoteStore): NoteStore {
+  const mergedNotes = new Map(existingStore.notes.map((note) => [note.id, note]));
+
+  for (const incomingNote of incomingStore.notes) {
+    const existingNote = mergedNotes.get(incomingNote.id);
+
+    if (
+      existingNote &&
+      (existingNote.deletedAt !== null && incomingNote.deletedAt === null ||
+        existingNote.deletedAt === incomingNote.deletedAt &&
+          existingNote.updatedAt > incomingNote.updatedAt)
+    ) {
+      continue;
+    }
+
+    mergedNotes.set(incomingNote.id, incomingNote);
+  }
+
+  return normalizeNoteStore({
+    schemaVersion: NOTE_STORE_SCHEMA_VERSION,
+    notes: [...mergedNotes.values()],
+    selectedNoteId: incomingStore.selectedNoteId ?? existingStore.selectedNoteId,
+  });
 }
 
 export async function loadNoteStore(): Promise<NoteStore> {
@@ -107,6 +132,11 @@ export async function saveNoteStore(store: NoteStore): Promise<void> {
     return;
   }
 
-  window.localStorage.setItem(BROWSER_STORE_KEY, JSON.stringify(storeToSave));
+  const existingValue = window.localStorage.getItem(BROWSER_STORE_KEY);
+  const existingStore = existingValue
+    ? normalizeNoteStore(JSON.parse(existingValue))
+    : emptyNoteStore;
+  const mergedStore = mergeNoteStores(existingStore, storeToSave);
+  window.localStorage.setItem(BROWSER_STORE_KEY, JSON.stringify(mergedStore));
   window.dispatchEvent(new CustomEvent(NOTE_STORE_CHANGED_EVENT));
 }

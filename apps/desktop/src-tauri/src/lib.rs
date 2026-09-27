@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager, State};
 
 const STORE_FILE_NAME: &str = "notes.json";
 const CURRENT_SCHEMA_VERSION: u32 = 1;
@@ -76,7 +77,10 @@ fn normalize_note_store(mut store: NoteStore) -> NoteStore {
         .selected_note_id
         .as_ref()
         .is_some_and(|selected_note_id| {
-            !store.notes.iter().any(|note| &note.id == selected_note_id)
+            !store
+                .notes
+                .iter()
+                .any(|note| &note.id == selected_note_id && note.deleted_at.is_none())
         })
     {
         store.selected_note_id = None;
@@ -93,7 +97,11 @@ fn merge_note_store(existing_store: NoteStore, incoming_store: NoteStore) -> Not
             .iter()
             .position(|note| note.id == incoming_note.id)
         {
-            Some(index) if merged_notes[index].updated_at > incoming_note.updated_at => {}
+            Some(index)
+                if (merged_notes[index].deleted_at.is_some()
+                    && incoming_note.deleted_at.is_none())
+                    || (merged_notes[index].deleted_at == incoming_note.deleted_at
+                        && merged_notes[index].updated_at > incoming_note.updated_at) => {}
             Some(index) => merged_notes[index] = incoming_note,
             None => merged_notes.push(incoming_note),
         }
@@ -102,17 +110,18 @@ fn merge_note_store(existing_store: NoteStore, incoming_store: NoteStore) -> Not
     merged_notes
         .sort_by(|first_note, second_note| second_note.updated_at.cmp(&first_note.updated_at));
 
-    NoteStore {
+    normalize_note_store(NoteStore {
         schema_version: CURRENT_SCHEMA_VERSION,
         notes: merged_notes,
         selected_note_id: incoming_store
             .selected_note_id
             .or(existing_store.selected_note_id),
-    }
+    })
 }
 
 #[tauri::command]
-fn load_note_store(app: AppHandle) -> Result<NoteStore, String> {
+fn load_note_store(app: AppHandle, store_lock: State<'_, Mutex<()>>) -> Result<NoteStore, String> {
+    let _guard = store_lock.lock().map_err(|error| error.to_string())?;
     let path = store_path(&app)?;
 
     if !path.exists() {
@@ -123,7 +132,12 @@ fn load_note_store(app: AppHandle) -> Result<NoteStore, String> {
 }
 
 #[tauri::command]
-fn save_note_store(app: AppHandle, store: NoteStore) -> Result<(), String> {
+fn save_note_store(
+    app: AppHandle,
+    store: NoteStore,
+    store_lock: State<'_, Mutex<()>>,
+) -> Result<(), String> {
+    let _guard = store_lock.lock().map_err(|error| error.to_string())?;
     let path = store_path(&app)?;
     let store_dir = path
         .parent()
@@ -145,8 +159,73 @@ fn save_note_store(app: AppHandle, store: NoteStore) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(Mutex::new(()))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![load_note_store, save_note_store])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn note(id: &str, updated_at: &str, deleted_at: Option<&str>) -> Note {
+        Note {
+            id: id.to_string(),
+            title: "memo".to_string(),
+            content: "content".to_string(),
+            created_at: "2026-09-27T00:00:00.000Z".to_string(),
+            updated_at: updated_at.to_string(),
+            deleted_at: deleted_at.map(str::to_string),
+            is_pinned: false,
+            schema_version: CURRENT_SCHEMA_VERSION,
+        }
+    }
+
+    #[test]
+    fn deleted_note_cannot_be_restored_by_a_stale_window() {
+        let deleted_at = "2026-09-27T00:00:02.000Z";
+        let existing_store = NoteStore {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            notes: vec![note("one", deleted_at, Some(deleted_at))],
+            selected_note_id: None,
+        };
+        let stale_store = NoteStore {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            notes: vec![note("one", "2026-09-27T00:00:03.000Z", None)],
+            selected_note_id: Some("one".to_string()),
+        };
+
+        let merged_store = merge_note_store(existing_store, stale_store);
+
+        assert_eq!(
+            merged_store.notes[0].deleted_at.as_deref(),
+            Some(deleted_at)
+        );
+        assert_eq!(merged_store.selected_note_id, None);
+    }
+
+    #[test]
+    fn deletion_replaces_a_newer_unsaved_note() {
+        let deleted_at = "2026-09-27T00:00:02.000Z";
+        let existing_store = NoteStore {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            notes: vec![note("one", "2026-09-27T00:00:03.000Z", None)],
+            selected_note_id: Some("one".to_string()),
+        };
+        let incoming_store = NoteStore {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            notes: vec![note("one", deleted_at, Some(deleted_at))],
+            selected_note_id: None,
+        };
+
+        let merged_store = merge_note_store(existing_store, incoming_store);
+
+        assert_eq!(
+            merged_store.notes[0].deleted_at.as_deref(),
+            Some(deleted_at)
+        );
+        assert_eq!(merged_store.selected_note_id, None);
+    }
 }

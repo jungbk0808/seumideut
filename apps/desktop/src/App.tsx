@@ -2,6 +2,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { CodeXml, Newspaper, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
@@ -158,17 +160,109 @@ function toPersistableStore(notes: Note[], selectedNoteId: string): NoteStore {
         note.id === selectedNoteId,
     ),
   );
-  const persistableSelectedNoteId = persistableNotes.some(
+  const activePersistableNotes = persistableNotes.filter(
+    (note) => note.deletedAt === null,
+  );
+  const persistableSelectedNoteId = activePersistableNotes.some(
     (note) => note.id === selectedNoteId,
   )
     ? selectedNoteId
-    : (persistableNotes[0]?.id ?? null);
+    : (activePersistableNotes[0]?.id ?? null);
 
   return {
     ...emptyNoteStore,
     notes: persistableNotes,
     selectedNoteId: persistableSelectedNoteId,
   };
+}
+
+function DeleteConfirmationModal({
+  isDeleting,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  isDeleting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    cancelButtonRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && !isDeleting) {
+      event.preventDefault();
+      onCancel();
+    }
+
+    if (event.key === "Tab") {
+      const target = event.shiftKey
+        ? cancelButtonRef.current
+        : confirmButtonRef.current;
+      if (document.activeElement === target) {
+        event.preventDefault();
+        (event.shiftKey
+          ? confirmButtonRef.current
+          : cancelButtonRef.current
+        )?.focus();
+      }
+    }
+  };
+
+  return (
+    <div
+      className="delete-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isDeleting) onCancel();
+      }}
+    >
+      <div
+        className="delete-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-modal-title"
+        aria-describedby="delete-modal-description"
+        onKeyDown={handleKeyDown}
+      >
+        <h2 id="delete-modal-title">메모를 삭제할까요?</h2>
+        <p id="delete-modal-description">
+          삭제하면 목록에서 사라져요.
+          <br />
+          MVP에서는 복구를 지원하지 않을 수 있어요.
+        </p>
+        {error && (
+          <p className="delete-modal-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="delete-modal-actions">
+          <button
+            ref={cancelButtonRef}
+            className="text-button"
+            type="button"
+            disabled={isDeleting}
+            onClick={onCancel}
+          >
+            취소
+          </button>
+          <button
+            ref={confirmButtonRef}
+            className="danger-button"
+            type="button"
+            disabled={isDeleting}
+            onClick={onConfirm}
+          >
+            {isDeleting ? "삭제 중..." : "삭제"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -183,8 +277,14 @@ export default function App() {
   const [hasLoadedStore, setHasLoadedStore] = useState(false);
   const [hasPendingSave, setHasPendingSave] = useState(false);
   const [saveAttempt, setSaveAttempt] = useState(0);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
   const saveVersionRef = useRef(0);
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   useEffect(() => {
     let isMounted = true;
@@ -204,7 +304,8 @@ export default function App() {
         const startupNotes = draftNote ? [draftNote, ...restoredNotes] : restoredNotes;
         const startupSelectedNoteId = draftNote
           ? draftNote.id
-          : startupNotes.find((note) => note.id === fallbackSelectedNoteId)?.id ?? "";
+          : (startupNotes.find((note) => note.id === fallbackSelectedNoteId)
+              ?.id ?? startupNotes[0]?.id ?? "");
 
         if (!isMounted) return;
 
@@ -240,10 +341,28 @@ export default function App() {
     let isSubscribed = true;
 
     const reloadStoredNotes = async () => {
-      if (hasPendingSave) return;
-
       try {
         const store = await loadNoteStore();
+        if (!isSubscribed) return;
+
+        if (hasPendingSave) {
+          const deletedIds = new Set(
+            store.notes
+              .filter((note) => note.deletedAt !== null)
+              .map((note) => note.id),
+          );
+          if (deletedIds.size === 0) return;
+
+          const remainingNotes = notesRef.current.filter(
+            (note) => !deletedIds.has(note.id),
+          );
+          setNotes(remainingNotes);
+          if (deletedIds.has(selectedNoteId)) {
+            setSelectedNoteId(sortByUpdatedAt(remainingNotes)[0]?.id ?? "");
+          }
+          return;
+        }
+
         const restoredNotes = sortByUpdatedAt(
           store.notes.filter((note) => note.deletedAt === null),
         );
@@ -253,7 +372,9 @@ export default function App() {
           store.selectedNoteId ||
           restoredNotes[0]?.id;
         const nextSelectedNoteId =
-          restoredNotes.find((note) => note.id === fallbackSelectedNoteId)?.id ?? "";
+          restoredNotes.find((note) => note.id === fallbackSelectedNoteId)?.id ??
+          restoredNotes[0]?.id ??
+          "";
 
         if (!isSubscribed) return;
 
@@ -339,7 +460,7 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
-    if (!hasLoadedStore || !hasPendingSave) return;
+    if (!hasLoadedStore || !hasPendingSave || deleteTargetId !== null) return;
 
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
@@ -372,7 +493,14 @@ export default function App() {
         window.clearTimeout(saveTimerRef.current);
       }
     };
-  }, [hasLoadedStore, hasPendingSave, notes, saveAttempt, selectedNoteId]);
+  }, [
+    deleteTargetId,
+    hasLoadedStore,
+    hasPendingSave,
+    notes,
+    saveAttempt,
+    selectedNoteId,
+  ]);
 
   const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? null;
   const activeNotes = useMemo(
@@ -435,6 +563,62 @@ export default function App() {
   const handleRetrySave = () => {
     setHasPendingSave(true);
     setSaveAttempt((currentAttempt) => currentAttempt + 1);
+  };
+
+  const handleOpenDeleteModal = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!selectedNote) return;
+
+    deleteTriggerRef.current = event.currentTarget;
+    setDeleteError(null);
+    setDeleteTargetId(selectedNote.id);
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteTargetId(null);
+    setDeleteError(null);
+    window.requestAnimationFrame(() => deleteTriggerRef.current?.focus());
+  };
+
+  const handleConfirmDelete = async () => {
+    const targetNote = notes.find((note) => note.id === deleteTargetId);
+    if (!targetNote || isDeleting) return;
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveVersionRef.current += 1;
+
+    const deletedAt = new Date().toISOString();
+    const nextNotes = notes.map((note) =>
+      note.id === targetNote.id
+        ? { ...note, deletedAt, updatedAt: deletedAt }
+        : note,
+    );
+    const nextActiveNotes = sortByUpdatedAt(
+      nextNotes.filter((note) => note.deletedAt === null),
+    );
+    const nextSelectedNoteId =
+      selectedNoteId === targetNote.id
+        ? (nextActiveNotes[0]?.id ?? "")
+        : selectedNoteId;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setSaveStatus("saving");
+
+    try {
+      await saveNoteStore(toPersistableStore(nextNotes, nextSelectedNoteId));
+      setNotes(nextNotes);
+      setSelectedNoteId(nextSelectedNoteId);
+      setHasPendingSave(false);
+      setSaveStatus("saved");
+      setDeleteTargetId(null);
+    } catch {
+      setSaveStatus("failed");
+      setDeleteError("메모를 삭제하지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const persistCurrentStore = async () => {
@@ -514,6 +698,17 @@ export default function App() {
       <span>{getSaveStatusText(saveStatus)}</span>
     );
 
+  const deleteModal = deleteTargetId && (
+    <DeleteConfirmationModal
+      isDeleting={isDeleting}
+      error={deleteError}
+      onCancel={handleCancelDelete}
+      onConfirm={() => {
+        void handleConfirmDelete();
+      }}
+    />
+  );
+
   if (viewMode === "widget") {
     return (
       <main className="app-shell widget-mode">
@@ -553,21 +748,38 @@ export default function App() {
           </header>
 
           <div className="widget-editor">
-            <input
-              className="widget-title-input"
-              value={selectedNote?.title ?? ""}
-              onChange={(event) => updateSelectedNote({ title: event.target.value })}
-              placeholder="제목 없음"
-              aria-label="메모 제목"
-              autoFocus
-            />
-            <div className="widget-body-shell">
-              <MarkdownRichEditor
-                className="widget-markdown-editor"
-                content={selectedNote?.content ?? ""}
-                onChange={(content) => updateSelectedNote({ content })}
-              />
-            </div>
+            {selectedNote ? (
+              <>
+                <input
+                  className="widget-title-input"
+                  value={selectedNote.title}
+                  onChange={(event) =>
+                    updateSelectedNote({ title: event.target.value })
+                  }
+                  placeholder="제목 없음"
+                  aria-label="메모 제목"
+                  autoFocus
+                />
+                <div className="widget-body-shell">
+                  <MarkdownRichEditor
+                    className="widget-markdown-editor"
+                    content={selectedNote.content}
+                    onChange={(content) => updateSelectedNote({ content })}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="empty-widget">
+                <p>아직 메모가 없어요.</p>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={handleCreateNote}
+                >
+                  새 메모 만들기
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="status-row" aria-live="polite">
@@ -587,11 +799,17 @@ export default function App() {
             >
               전체 메모 열기
             </button>
-            <button className="danger-button" type="button">
+            <button
+              className="danger-button"
+              type="button"
+              onClick={handleOpenDeleteModal}
+              disabled={!selectedNote}
+            >
               삭제
             </button>
           </footer>
         </section>
+        {deleteModal}
       </main>
     );
   }
@@ -720,7 +938,11 @@ export default function App() {
                   onModeChange={setMarkdownViewMode}
                 />
 
-                <button className="full-delete-button" type="button">
+                <button
+                  className="full-delete-button"
+                  type="button"
+                  onClick={handleOpenDeleteModal}
+                >
                   <Trash2 size={14} aria-hidden="true" />
                   삭제
                 </button>
@@ -743,6 +965,7 @@ export default function App() {
           )}
         </section>
       </section>
+      {deleteModal}
     </main>
   );
 }

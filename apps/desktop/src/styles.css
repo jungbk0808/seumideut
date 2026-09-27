@@ -398,6 +398,67 @@ button {
   margin: 0;
 }
 
+.delete-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(251, 252, 253, 0.7);
+}
+
+.delete-modal {
+  width: min(320px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #cfd6de;
+  border-radius: 8px;
+  padding: 20px;
+  background: #fbfcfd;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+.delete-modal h2 {
+  margin: 0;
+  color: #1f2933;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 36px;
+}
+
+.delete-modal > p {
+  margin: 0;
+  color: #7a8794;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.delete-modal .delete-modal-error {
+  color: #a03a3a;
+  font-size: 12px;
+}
+
+.delete-modal-actions {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.delete-modal-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.delete-modal-actions button:disabled,
+.widget-footer button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .widget-mode {
   padding: 0;
 }
@@ -432,6 +493,19 @@ button {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   padding: 17px 18px 0;
+}
+
+.empty-widget {
+  align-self: center;
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  color: #7a8794;
+  font-size: 14px;
+}
+
+.empty-widget p {
+  margin: 0;
 }
 
 .widget-title-input {
