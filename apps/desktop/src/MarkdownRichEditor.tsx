@@ -5,7 +5,7 @@ import TaskList from "@tiptap/extension-task-list";
 import { Markdown } from "@tiptap/markdown";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { Editor } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef } from "react";
 
 type MarkdownRichEditorProps = {
@@ -35,6 +35,21 @@ function keepDeepHeadingsLiteral(content: string) {
   return content.replace(/^#{5,6}(?=[ \t]|$)/gm, "\\$&");
 }
 
+const ExitBlockquoteOnEnter = Extension.create({
+  name: "exitBlockquoteOnEnter",
+  // Handle Enter before StarterKit splits a new paragraph inside the quote.
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        if (!this.editor.isActive("blockquote")) return false;
+
+        return this.editor.chain().splitBlock().lift("blockquote").run();
+      },
+    };
+  },
+});
+
 export function MarkdownRichEditor({
   ariaLabel = "메모 본문",
   className = "",
@@ -56,6 +71,7 @@ export function MarkdownRichEditor({
         heading: { levels: [1, 2, 3, 4] },
         link: false,
       }),
+      ExitBlockquoteOnEnter,
       Link.configure({
         autolink: true,
         defaultProtocol: "https",
