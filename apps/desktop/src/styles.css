@@ -650,8 +650,16 @@ button {
 
 .markdown-rich-surface blockquote {
   border-left: 3px solid #b7ccdc;
-  padding: 3px 0 3px 12px;
+  padding-left: 12px;
   color: #4f5f6f;
+}
+
+.markdown-rich-surface blockquote > :first-child {
+  margin-top: 0;
+}
+
+.markdown-rich-surface blockquote > :last-child {
+  margin-bottom: 0;
 }
 
 .markdown-rich-surface code {
@@ -712,6 +720,10 @@ button {
 
 .widget-markdown-editor .markdown-rich-surface h3 {
   font-size: 14px;
+}
+
+.widget-markdown-editor .markdown-rich-surface h4 {
+  font-size: 13px;
 }
 
 .status-row {

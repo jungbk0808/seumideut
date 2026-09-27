@@ -31,6 +31,10 @@ function getMarkdown(editor: Editor) {
   return editor.getMarkdown();
 }
 
+function keepDeepHeadingsLiteral(content: string) {
+  return content.replace(/^#{5,6}(?=[ \t]|$)/gm, "\\$&");
+}
+
 export function MarkdownRichEditor({
   ariaLabel = "메모 본문",
   className = "",
@@ -49,6 +53,7 @@ export function MarkdownRichEditor({
   const extensions = useMemo(
     () => [
       StarterKit.configure({
+        heading: { levels: [1, 2, 3, 4] },
         link: false,
       }),
       Link.configure({
@@ -84,7 +89,7 @@ export function MarkdownRichEditor({
 
   const editor = useEditor(
     {
-      content,
+      content: keepDeepHeadingsLiteral(content),
       contentType: "markdown",
       editorProps: {
         attributes: {
@@ -114,7 +119,7 @@ export function MarkdownRichEditor({
     }
 
     contentRef.current = content;
-    editor.commands.setContent(content, {
+    editor.commands.setContent(keepDeepHeadingsLiteral(content), {
       contentType: "markdown",
       emitUpdate: false,
     });
