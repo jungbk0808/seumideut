@@ -581,13 +581,11 @@ button {
 }
 
 .markdown-rich-surface h1 {
-  border-bottom: 1px solid #e0e6eb;
-  padding-bottom: 8px;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .markdown-rich-surface h2 {
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .markdown-rich-surface h3 {
@@ -705,9 +703,15 @@ button {
 }
 
 .widget-markdown-editor .markdown-rich-surface h1 {
-  border-bottom: 0;
-  padding-bottom: 0;
-  font-size: 15px;
+  font-size: 18px;
+}
+
+.widget-markdown-editor .markdown-rich-surface h2 {
+  font-size: 16px;
+}
+
+.widget-markdown-editor .markdown-rich-surface h3 {
+  font-size: 14px;
 }
 
 .status-row {
