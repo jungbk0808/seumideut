@@ -2,6 +2,10 @@ import { emitTo } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const FULL_WINDOW_LABEL = "full";
+const MAIN_WIDGET_WINDOW_LABEL = "main";
+const WIDGET_WINDOW_LABEL = "widget";
+
+export const WIDGET_NAVIGATE_EVENT = "memo-widget-navigate";
 
 const WINDOW_OPTIONS = {
   widget: {
@@ -38,11 +42,12 @@ function openBrowserWindow(params: Record<string, string>) {
       : { width: WINDOW_OPTIONS.widget.width, height: WINDOW_OPTIONS.widget.height };
 
   nextUrl.search = new URLSearchParams(params).toString();
-  window.open(
+  const openedWindow = window.open(
     nextUrl.toString(),
-    "_blank",
+    params.view === "full" ? "memo-full" : "memo-widget",
     `width=${windowSize.width},height=${windowSize.height}`,
   );
+  openedWindow?.focus();
 }
 
 function createWindow(label: string, url: string, mode: "widget" | "full") {
@@ -86,7 +91,6 @@ export async function openFullMemoWindow(noteId?: string) {
 }
 
 export async function openWidgetMemoWindow(noteId?: string) {
-  const label = `widget-${crypto.randomUUID()}`;
   const params: Record<string, string> = noteId
     ? { view: "widget", noteId }
     : { view: "widget", new: "1" };
@@ -97,5 +101,18 @@ export async function openWidgetMemoWindow(noteId?: string) {
     return;
   }
 
-  createWindow(label, url, "widget");
+  // The configured main window is the first widget; "widget" is used after it closes.
+  const existingWindow =
+    (await WebviewWindow.getByLabel(MAIN_WIDGET_WINDOW_LABEL)) ??
+    (await WebviewWindow.getByLabel(WIDGET_WINDOW_LABEL));
+
+  if (existingWindow) {
+    await existingWindow.setFocus();
+    await emitTo(existingWindow.label, WIDGET_NAVIGATE_EVENT, {
+      noteId: noteId ?? null,
+    });
+    return;
+  }
+
+  createWindow(WIDGET_WINDOW_LABEL, url, "widget");
 }

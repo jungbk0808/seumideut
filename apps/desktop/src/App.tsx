@@ -20,7 +20,11 @@ import {
   saveNoteStore,
 } from "./storage";
 import { MarkdownRichEditor } from "./MarkdownRichEditor";
-import { openFullMemoWindow, openWidgetMemoWindow } from "./windows";
+import {
+  WIDGET_NAVIGATE_EVENT,
+  openFullMemoWindow,
+  openWidgetMemoWindow,
+} from "./windows";
 
 type ViewMode = "full" | "widget";
 type MarkdownViewMode = "preview" | "source";
@@ -283,6 +287,10 @@ export default function App() {
   const saveTimerRef = useRef<number | null>(null);
   const saveVersionRef = useRef(0);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const widgetTitleRef = useRef<HTMLInputElement>(null);
+  const widgetNavigateRef = useRef<(noteId: string | null) => Promise<void>>(
+    async () => {},
+  );
   const notesRef = useRef(notes);
   notesRef.current = notes;
 
@@ -444,6 +452,33 @@ export default function App() {
   }, [viewMode]);
 
   useEffect(() => {
+    if (viewMode !== "widget" || !isTauriRuntime()) return;
+
+    let isSubscribed = true;
+    let unlistenNavigateEvent: (() => void) | null = null;
+
+    void listen<{ noteId: string | null }>(WIDGET_NAVIGATE_EVENT, ({ payload }) => {
+      if (isSubscribed) {
+        void widgetNavigateRef.current(payload.noteId);
+      }
+    }).then((unlisten) => {
+      if (isSubscribed) unlistenNavigateEvent = unlisten;
+      else unlisten();
+    });
+
+    return () => {
+      isSubscribed = false;
+      unlistenNavigateEvent?.();
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      window.name = viewMode === "full" ? "memo-full" : "memo-widget";
+    }
+  }, [viewMode]);
+
+  useEffect(() => {
     const resizeWindow = async () => {
       try {
         const currentWindow = getCurrentWindow();
@@ -552,6 +587,11 @@ export default function App() {
   };
 
   const handleCreateNote = () => {
+    if (viewMode === "widget") {
+      void widgetNavigateRef.current(null);
+      return;
+    }
+
     void openWidgetMemoWindow();
   };
 
@@ -622,7 +662,7 @@ export default function App() {
   };
 
   const persistCurrentStore = async () => {
-    if (!hasLoadedStore) return;
+    if (!hasLoadedStore) return false;
 
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
@@ -633,31 +673,56 @@ export default function App() {
       await saveNoteStore(toPersistableStore(notes, selectedNoteId));
       setHasPendingSave(false);
       setSaveStatus("saved");
+      return true;
+    } catch {
+      setSaveStatus("failed");
+      return false;
+    }
+  };
+
+  widgetNavigateRef.current = async (noteId) => {
+    if (!hasLoadedStore || noteId === selectedNoteId) return;
+    if (hasPendingSave && !(await persistCurrentStore())) return;
+
+    if (noteId === null) {
+      const draftNote = createEmptyNote();
+      setNotes((currentNotes) => [draftNote, ...currentNotes]);
+      setSelectedNoteId(draftNote.id);
+      setSaveStatus("idle");
+      window.requestAnimationFrame(() => widgetTitleRef.current?.focus());
+      return;
+    }
+
+    try {
+      const store = await loadNoteStore();
+      const restoredNotes = sortByUpdatedAt(
+        store.notes.filter((note) => note.deletedAt === null),
+      );
+      if (!restoredNotes.some((note) => note.id === noteId)) return;
+
+      setNotes(restoredNotes);
+      setSelectedNoteId(noteId);
+      setSaveStatus("saved");
+      window.requestAnimationFrame(() => widgetTitleRef.current?.focus());
     } catch {
       setSaveStatus("failed");
     }
   };
 
   const handleOpenFullMemoWindow = async () => {
-    if (hasPendingSave) {
-      await persistCurrentStore();
-    }
+    if (hasPendingSave && !(await persistCurrentStore())) return;
 
     await openFullMemoWindow(selectedNote?.id);
   };
 
   const handleOpenSelectedWidgetWindow = async () => {
-    if (hasPendingSave) {
-      await persistCurrentStore();
-    }
+    if (hasPendingSave && !(await persistCurrentStore())) return;
 
     await openWidgetMemoWindow(selectedNote?.id);
   };
 
   const handleCloseWindow = async () => {
-    if (hasPendingSave) {
-      await persistCurrentStore();
-    }
+    if (hasPendingSave && !(await persistCurrentStore())) return;
 
     try {
       await getCurrentWindow().destroy();
@@ -751,6 +816,7 @@ export default function App() {
             {selectedNote ? (
               <>
                 <input
+                  ref={widgetTitleRef}
                   className="widget-title-input"
                   value={selectedNote.title}
                   onChange={(event) =>
