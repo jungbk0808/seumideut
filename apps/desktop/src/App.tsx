@@ -26,6 +26,8 @@ import {
   openWidgetMemoWindow,
 } from "./windows";
 
+const brandLogo = "/logo.svg";
+
 type ViewMode = "full" | "widget";
 type MarkdownViewMode = "preview" | "source";
 type SaveStatus = "loading" | "idle" | "saving" | "saved" | "failed";
@@ -783,7 +785,6 @@ export default function App() {
             data-tauri-drag-region
             onPointerDown={handleStartWindowDrag}
           >
-            <h1 data-tauri-drag-region>Memo</h1>
             <div className="drag-region" data-tauri-drag-region />
             <div className="header-actions">
               <button className="icon-button" type="button" aria-label="상단 고정">
@@ -888,7 +889,11 @@ export default function App() {
           data-tauri-drag-region
           onPointerDown={handleStartWindowDrag}
         >
-          <h1 data-tauri-drag-region>전체 메모</h1>
+          <div className="brand-lockup" data-tauri-drag-region>
+            <img className="brand-logo" src={brandLogo} alt="" draggable={false} />
+            <h1 data-tauri-drag-region>스미듯</h1>
+            <span className="brand-context" data-tauri-drag-region>전체 메모</span>
+          </div>
           <div className="drag-region" data-tauri-drag-region />
           <div className="header-actions">
             <button

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Memo",
+  "productName": "스미듯",
   "version": "0.1.0",
   "identifier": "com.local.memoapp",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Memo",
+        "title": "스미듯",
         "width": 430,
         "height": 520,
         "minWidth": 320,

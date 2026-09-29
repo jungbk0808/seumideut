@@ -9,14 +9,14 @@ export const WIDGET_NAVIGATE_EVENT = "memo-widget-navigate";
 
 const WINDOW_OPTIONS = {
   widget: {
-    title: "Memo",
+    title: "스미듯",
     width: 430,
     height: 520,
     minWidth: 320,
     minHeight: 520,
   },
   full: {
-    title: "전체 메모",
+    title: "스미듯 · 전체 메모",
     width: 1080,
     height: 720,
     minWidth: 760,

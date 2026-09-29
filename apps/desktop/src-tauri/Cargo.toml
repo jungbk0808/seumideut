@@ -1,12 +1,12 @@
 [package]
-name = "memo-app"
+name = "seumideut-desktop"
 version = "0.1.0"
-description = "A lightweight local-first memo widget."
+description = "스미듯: 떠오른 생각을 언제 어디서나 가볍게 남기는 기록 공간"
 authors = ["jbg"]
 edition = "2021"
 
 [lib]
-name = "memo_app_lib"
+name = "seumideut_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
