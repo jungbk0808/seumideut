@@ -30,8 +30,13 @@ Windows 기준입니다. 브라우저에서 화면만 확인한다면 Node.js만
 
 1. Node.js 설치
 2. Visual Studio Build Tools 설치 (Tauri 데스크톱 빌드용)
-   - 설치할 때 "C++를 사용한 데스크톱 개발" 워크로드를 선택합니다.
+   ```bash
+   winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+   ```
+
+   - 설치 프로그램에서 직접 고른다면 "C++를 사용한 데스크톱 개발" 워크로드를 선택합니다.
    - 이미 Visual Studio가 설치되어 있다면 건너뜁니다.
+   - 설치 후 터미널이나 VS Code를 완전히 닫았다가 다시 실행합니다.
 3. Rust 설치 (Tauri 데스크톱 빌드용)
 
    ```bash
@@ -47,7 +52,7 @@ Windows 기준입니다. 브라우저에서 화면만 확인한다면 Node.js만
    npm --prefix apps/desktop install
    ```
 
-`tauri` 명령을 찾을 수 없다는 오류는 4번 의존성 설치를 하지 않았을 때, `cargo metadata ... program not found` 오류는 Rust가 없거나 PATH가 반영되지 않았을 때 나옵니다. 첫 Tauri 빌드는 Rust 크레이트를 내려받고 컴파일하느라 몇 분 걸립니다.
+`tauri` 명령을 찾을 수 없다는 오류는 4번 의존성 설치를 하지 않았을 때, `cargo metadata ... program not found` 오류는 Rust가 없거나 PATH가 반영되지 않았을 때, `linker link.exe not found` 오류는 2번 Build Tools가 없을 때 나옵니다. 첫 Tauri 빌드는 Rust 크레이트를 내려받고 컴파일하느라 몇 분 걸립니다.
 
 ## 개발 명령
 
