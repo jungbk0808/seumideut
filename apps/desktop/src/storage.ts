@@ -111,6 +111,25 @@ function mergeNoteStores(existingStore: NoteStore, incomingStore: NoteStore): No
   });
 }
 
+export type StorageSettings = {
+  storageDir: string | null;
+  effectiveDir: string;
+};
+
+// Browser-only development stores notes in localStorage, so there is no folder to show.
+export async function loadStorageSettings(): Promise<StorageSettings | null> {
+  if (!isTauriRuntime()) return null;
+
+  return invoke<StorageSettings>("get_storage_settings");
+}
+
+export async function changeStorageDir(dir: string): Promise<StorageSettings> {
+  const settings = await invoke<StorageSettings>("set_storage_dir", { dir });
+  await emit(NOTE_STORE_CHANGED_EVENT);
+
+  return settings;
+}
+
 export async function loadNoteStore(): Promise<NoteStore> {
   if (isTauriRuntime()) {
     return normalizeNoteStore(await invoke<NoteStore>("load_note_store"));

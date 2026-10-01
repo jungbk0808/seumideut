@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
 const STORE_FILE_NAME: &str = "notes.json";
+const SETTINGS_FILE_NAME: &str = "settings.json";
 const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 fn current_schema_version() -> u32 {
@@ -46,13 +47,68 @@ impl Default for NoteStore {
     }
 }
 
-fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?;
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+    #[serde(default)]
+    storage_dir: Option<String>,
+}
 
-    Ok(app_data_dir.join(STORE_FILE_NAME))
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageSettings {
+    storage_dir: Option<String>,
+    effective_dir: String,
+}
+
+fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().app_data_dir().map_err(|error| error.to_string())
+}
+
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app_data_dir(app)?.join(SETTINGS_FILE_NAME))
+}
+
+fn read_settings(app: &AppHandle) -> AppSettings {
+    settings_path(app)
+        .ok()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|raw_settings| serde_json::from_str(&raw_settings).ok())
+        .unwrap_or_default()
+}
+
+fn store_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    match read_settings(app)
+        .storage_dir
+        .filter(|storage_dir| !storage_dir.trim().is_empty())
+    {
+        Some(storage_dir) => Ok(PathBuf::from(storage_dir)),
+        None => app_data_dir(app),
+    }
+}
+
+fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(store_dir(app)?.join(STORE_FILE_NAME))
+}
+
+fn storage_settings(app: &AppHandle) -> Result<StorageSettings, String> {
+    Ok(StorageSettings {
+        storage_dir: read_settings(app).storage_dir,
+        effective_dir: store_dir(app)?.to_string_lossy().into_owned(),
+    })
+}
+
+fn write_store_to_path(path: &PathBuf, store: &NoteStore) -> Result<(), String> {
+    let store_dir = path
+        .parent()
+        .ok_or_else(|| "Unable to resolve note store directory.".to_string())?;
+
+    fs::create_dir_all(store_dir).map_err(|error| error.to_string())?;
+
+    let serialized_store =
+        serde_json::to_string_pretty(store).map_err(|error| error.to_string())?;
+
+    fs::write(path, serialized_store).map_err(|error| error.to_string())
 }
 
 fn read_store_from_path(path: &PathBuf) -> Result<NoteStore, String> {
@@ -139,21 +195,67 @@ fn save_note_store(
 ) -> Result<(), String> {
     let _guard = store_lock.lock().map_err(|error| error.to_string())?;
     let path = store_path(&app)?;
-    let store_dir = path
-        .parent()
-        .ok_or_else(|| "Unable to resolve note store directory.".to_string())?;
-
-    fs::create_dir_all(store_dir).map_err(|error| error.to_string())?;
 
     let incoming_store = normalize_note_store(store);
     let store_to_write = match read_store_from_path(&path) {
         Ok(existing_store) => merge_note_store(existing_store, incoming_store),
         Err(_) => incoming_store,
     };
-    let serialized_store =
-        serde_json::to_string_pretty(&store_to_write).map_err(|error| error.to_string())?;
 
-    fs::write(path, serialized_store).map_err(|error| error.to_string())
+    write_store_to_path(&path, &store_to_write)
+}
+
+#[tauri::command]
+fn get_storage_settings(app: AppHandle) -> Result<StorageSettings, String> {
+    storage_settings(&app)
+}
+
+#[tauri::command]
+fn set_storage_dir(
+    app: AppHandle,
+    dir: String,
+    store_lock: State<'_, Mutex<()>>,
+) -> Result<StorageSettings, String> {
+    let _guard = store_lock.lock().map_err(|error| error.to_string())?;
+    let target_dir = PathBuf::from(dir.trim());
+
+    if !target_dir.is_absolute() {
+        return Err("Storage folder must be an absolute path.".to_string());
+    }
+
+    fs::create_dir_all(&target_dir).map_err(|error| error.to_string())?;
+
+    let current_path = store_path(&app)?;
+    let target_path = target_dir.join(STORE_FILE_NAME);
+
+    // Carry existing notes over so switching folders never drops data.
+    if current_path != target_path {
+        if let Ok(current_store) = read_store_from_path(&current_path) {
+            let next_store = match read_store_from_path(&target_path) {
+                Ok(existing_store) => merge_note_store(existing_store, current_store),
+                Err(_) => normalize_note_store(current_store),
+            };
+
+            write_store_to_path(&target_path, &next_store)?;
+        }
+    }
+
+    let settings = AppSettings {
+        storage_dir: Some(target_dir.to_string_lossy().into_owned()),
+    };
+    let settings_file = settings_path(&app)?;
+    let settings_dir = settings_file
+        .parent()
+        .ok_or_else(|| "Unable to resolve settings directory.".to_string())?;
+
+    fs::create_dir_all(settings_dir).map_err(|error| error.to_string())?;
+    fs::write(
+        &settings_file,
+        serde_json::to_string_pretty(&settings).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    storage_settings(&app)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -161,7 +263,13 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(()))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![load_note_store, save_note_store])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            load_note_store,
+            save_note_store,
+            get_storage_settings,
+            set_storage_dir
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

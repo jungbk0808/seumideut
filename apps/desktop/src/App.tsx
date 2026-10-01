@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import {
   Check,
@@ -25,11 +26,15 @@ import {
   type NoteStore,
   NOTE_STORE_CHANGED_EVENT,
   NOTE_SCHEMA_VERSION,
+  type StorageSettings,
+  changeStorageDir,
   emptyNoteStore,
   loadNoteStore,
+  loadStorageSettings,
   saveNoteStore,
 } from "./storage";
 import { MarkdownRichEditor } from "./MarkdownRichEditor";
+import { SettingsPanel, type SyncState } from "./SettingsPanel";
 import {
   WIDGET_NAVIGATE_EVENT,
   openFullMemoWindow,
@@ -40,6 +45,7 @@ const brandLogo = "/logo.svg";
 
 type ViewMode = "full" | "widget";
 type MarkdownViewMode = "preview" | "source";
+type FullPanel = "editor" | "settings";
 type SaveStatus = "loading" | "idle" | "saving" | "saved" | "failed";
 type LaunchContext = {
   viewMode: ViewMode;
@@ -101,8 +107,8 @@ function sortByUpdatedAt(notes: Note[]) {
   );
 }
 
-function formatRelativeTime(note: Note) {
-  const updatedTime = new Date(note.updatedAt).getTime();
+function formatRelativeTime(isoDate: string) {
+  const updatedTime = new Date(isoDate).getTime();
   const diffInMs = Date.now() - updatedTime;
 
   if (!Number.isFinite(updatedTime) || diffInMs < 60_000) return "방금 전";
@@ -296,6 +302,14 @@ export default function App() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [fullPanel, setFullPanel] = useState<FullPanel>("editor");
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(
+    null,
+  );
+  const [isChangingFolder, setIsChangingFolder] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const [editingTitleNoteId, setEditingTitleNoteId] = useState<string | null>(
     null,
   );
@@ -460,6 +474,7 @@ export default function App() {
       void listen<{ noteId: string }>("memo-select-note", ({ payload }) => {
         if (isSubscribed && payload.noteId) {
           setSelectedNoteId(payload.noteId);
+          setFullPanel("editor");
         }
       }).then((unlisten) => {
         unlistenSelectEvent = unlisten;
@@ -490,6 +505,24 @@ export default function App() {
     return () => {
       isSubscribed = false;
       unlistenNavigateEvent?.();
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "full") return;
+
+    let isMounted = true;
+
+    void loadStorageSettings()
+      .then((settings) => {
+        if (isMounted) setStorageSettings(settings);
+      })
+      .catch(() => {
+        if (isMounted) setStorageSettings(null);
+      });
+
+    return () => {
+      isMounted = false;
     };
   }, [viewMode]);
 
@@ -631,6 +664,7 @@ export default function App() {
   const handleSelectNote = (noteId: string) => {
     setSelectedNoteId(noteId);
     setHasPendingSave(true);
+    setFullPanel("editor");
   };
 
   const handleStartTitleEdit = () => {
@@ -668,6 +702,70 @@ export default function App() {
     if (event.key === "Escape") {
       event.preventDefault();
       handleCancelTitleEdit();
+    }
+  };
+
+  const syncFromStorage = async (preferredNoteId: string) => {
+    const store = await loadNoteStore();
+    const restoredNotes = sortByUpdatedAt(
+      store.notes.filter((note) => note.deletedAt === null),
+    );
+
+    setNotes(restoredNotes);
+    setSelectedNoteId(
+      restoredNotes.find((note) => note.id === preferredNoteId)?.id ??
+        restoredNotes[0]?.id ??
+        "",
+    );
+  };
+
+  const handleSync = async () => {
+    if (syncState === "syncing") return;
+
+    setSyncState("syncing");
+
+    if (hasPendingSave && !(await persistCurrentStore())) {
+      setSyncState("failed");
+      return;
+    }
+
+    try {
+      await syncFromStorage(selectedNoteId);
+      setLastSyncedAt(new Date().toISOString());
+      setSyncState("idle");
+    } catch {
+      setSyncState("failed");
+    }
+  };
+
+  const handleChangeFolder = async () => {
+    if (isChangingFolder) return;
+
+    setFolderError(null);
+
+    try {
+      const selectedFolder = await openFolderDialog({
+        directory: true,
+        multiple: false,
+        defaultPath: storageSettings?.effectiveDir,
+        title: "메모 저장 폴더 선택",
+      });
+
+      if (typeof selectedFolder !== "string") return;
+
+      setIsChangingFolder(true);
+
+      if (hasPendingSave && !(await persistCurrentStore())) {
+        setFolderError("저장하지 못해 폴더를 바꾸지 않았어요. 다시 시도해 주세요.");
+        return;
+      }
+
+      setStorageSettings(await changeStorageDir(selectedFolder));
+      await syncFromStorage(selectedNoteId);
+    } catch {
+      setFolderError("폴더를 바꾸지 못했어요. 다른 폴더를 선택해 주세요.");
+    } finally {
+      setIsChangingFolder(false);
     }
   };
 
@@ -1000,15 +1098,26 @@ export default function App() {
           </div>
           <div className="drag-region" data-tauri-drag-region />
           <div className="header-actions">
-            <button
-              className="text-button"
-              type="button"
-              onClick={() => {
-                void handleOpenSelectedWidgetWindow();
-              }}
-            >
-              위젯으로
-            </button>
+            {fullPanel === "editor" && (
+              <>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setFullPanel("settings")}
+                >
+                  설정
+                </button>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    void handleOpenSelectedWidgetWindow();
+                  }}
+                >
+                  위젯으로
+                </button>
+              </>
+            )}
             <button
               className="icon-button"
               type="button"
@@ -1053,14 +1162,16 @@ export default function App() {
               filteredNotes.map((note) => (
                 <button
                   className={`memo-list-item ${
-                    note.id === selectedNoteId ? "selected" : ""
+                    fullPanel === "editor" && note.id === selectedNoteId
+                      ? "selected"
+                      : ""
                   }`}
                   type="button"
                   key={note.id}
                   onClick={() => handleSelectNote(note.id)}
                 >
                   <strong>{getNoteTitle(note)}</strong>
-                  <span>{formatRelativeTime(note)}</span>
+                  <span>{formatRelativeTime(note.updatedAt)}</span>
                   <small>{getPreview(note)}</small>
                 </button>
               ))
@@ -1070,6 +1181,22 @@ export default function App() {
           </div>
         </aside>
 
+        {fullPanel === "settings" ? (
+          <SettingsPanel
+            syncState={syncState}
+            lastSyncedText={lastSyncedAt ? formatRelativeTime(lastSyncedAt) : null}
+            storageDir={storageSettings?.effectiveDir ?? null}
+            isFolderChangeAvailable={storageSettings !== null}
+            isChangingFolder={isChangingFolder}
+            folderError={folderError}
+            onSync={() => {
+              void handleSync();
+            }}
+            onChangeFolder={() => {
+              void handleChangeFolder();
+            }}
+          />
+        ) : (
         <section className="full-editor" aria-label="선택한 메모 편집">
           {selectedNote ? (
             <>
@@ -1139,6 +1266,7 @@ export default function App() {
             </div>
           )}
         </section>
+        )}
       </section>
       {deleteModal}
     </main>
