@@ -1,6 +1,16 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { CodeXml, Newspaper, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Check,
+  CodeXml,
+  Newspaper,
+  Pencil,
+  Pin,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -286,10 +296,15 @@ export default function App() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingTitleNoteId, setEditingTitleNoteId] = useState<string | null>(
+    null,
+  );
+  const [titleDraft, setTitleDraft] = useState("");
   const saveTimerRef = useRef<number | null>(null);
   const saveVersionRef = useRef(0);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const widgetTitleRef = useRef<HTMLInputElement>(null);
+  const isTitleEditCancelledRef = useRef(false);
   const widgetNavigateRef = useRef<(noteId: string | null) => Promise<void>>(
     async () => {},
   );
@@ -322,6 +337,10 @@ export default function App() {
         setNotes(startupNotes);
         setSelectedNoteId(startupSelectedNoteId);
         setSaveStatus(restoredNotes.length > 0 ? "saved" : "idle");
+        if (draftNote) {
+          setTitleDraft("");
+          setEditingTitleNoteId(draftNote.id);
+        }
       } catch {
         const fallbackNote = createEmptyNote();
 
@@ -474,6 +493,18 @@ export default function App() {
     };
   }, [viewMode]);
 
+  const isEditingWidgetTitle =
+    viewMode === "widget" &&
+    editingTitleNoteId !== null &&
+    editingTitleNoteId === selectedNoteId;
+
+  useEffect(() => {
+    if (!isEditingWidgetTitle) return;
+
+    widgetTitleRef.current?.focus();
+    widgetTitleRef.current?.select();
+  }, [isEditingWidgetTitle]);
+
   useEffect(() => {
     if (!isTauriRuntime()) {
       window.name = viewMode === "full" ? "memo-full" : "memo-widget";
@@ -602,6 +633,44 @@ export default function App() {
     setHasPendingSave(true);
   };
 
+  const handleStartTitleEdit = () => {
+    if (!selectedNote) return;
+
+    isTitleEditCancelledRef.current = false;
+    setTitleDraft(selectedNote.title);
+    setEditingTitleNoteId(selectedNote.id);
+  };
+
+  const handleCommitTitleEdit = () => {
+    if (isTitleEditCancelledRef.current || editingTitleNoteId === null) return;
+
+    const nextTitle = titleDraft.trim();
+
+    if (selectedNote && nextTitle !== selectedNote.title) {
+      updateSelectedNote({ title: nextTitle });
+    }
+    setEditingTitleNoteId(null);
+  };
+
+  const handleCancelTitleEdit = () => {
+    isTitleEditCancelledRef.current = true;
+    setEditingTitleNoteId(null);
+  };
+
+  const handleTitleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing) return;
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      handleCommitTitleEdit();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      handleCancelTitleEdit();
+    }
+  };
+
   const handleRetrySave = () => {
     setHasPendingSave(true);
     setSaveAttempt((currentAttempt) => currentAttempt + 1);
@@ -691,7 +760,9 @@ export default function App() {
       setNotes((currentNotes) => [draftNote, ...currentNotes]);
       setSelectedNoteId(draftNote.id);
       setSaveStatus("idle");
-      window.requestAnimationFrame(() => widgetTitleRef.current?.focus());
+      isTitleEditCancelledRef.current = false;
+      setTitleDraft("");
+      setEditingTitleNoteId(draftNote.id);
       return;
     }
 
@@ -705,7 +776,6 @@ export default function App() {
       setNotes(restoredNotes);
       setSelectedNoteId(noteId);
       setSaveStatus("saved");
-      window.requestAnimationFrame(() => widgetTitleRef.current?.focus());
     } catch {
       setSaveStatus("failed");
     }
@@ -785,7 +855,54 @@ export default function App() {
             data-tauri-drag-region
             onPointerDown={handleStartWindowDrag}
           >
-            <div className="drag-region" data-tauri-drag-region />
+            {isEditingWidgetTitle ? (
+              <div className="widget-title-edit">
+                <input
+                  ref={widgetTitleRef}
+                  className="widget-title-input"
+                  value={titleDraft}
+                  onChange={(event) => setTitleDraft(event.target.value)}
+                  onKeyDown={handleTitleKeyDown}
+                  onBlur={handleCommitTitleEdit}
+                  placeholder="제목 없음"
+                  aria-label="메모 제목"
+                />
+                <button
+                  className="icon-button title-confirm-button"
+                  type="button"
+                  aria-label="제목 저장"
+                  title="제목 저장"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={handleCommitTitleEdit}
+                >
+                  <Check size={14} aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="widget-title-area" data-tauri-drag-region>
+                  <h1
+                    className={`widget-title ${
+                      selectedNote?.title.trim() ? "" : "placeholder"
+                    }`}
+                    data-tauri-drag-region
+                  >
+                    {selectedNote ? getNoteTitle(selectedNote) : "스미듯"}
+                  </h1>
+                  <button
+                    className="icon-button title-edit-button"
+                    type="button"
+                    aria-label="제목 수정"
+                    title="제목 수정"
+                    disabled={!selectedNote}
+                    onClick={handleStartTitleEdit}
+                  >
+                    <Pencil size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="drag-region" data-tauri-drag-region />
+              </>
+            )}
             <div className="header-actions">
               <button className="icon-button" type="button" aria-label="상단 고정">
                 <Pin size={16} aria-hidden="true" />
@@ -815,26 +932,13 @@ export default function App() {
 
           <div className="widget-editor">
             {selectedNote ? (
-              <>
-                <input
-                  ref={widgetTitleRef}
-                  className="widget-title-input"
-                  value={selectedNote.title}
-                  onChange={(event) =>
-                    updateSelectedNote({ title: event.target.value })
-                  }
-                  placeholder="제목 없음"
-                  aria-label="메모 제목"
-                  autoFocus
+              <div className="widget-body-shell">
+                <MarkdownRichEditor
+                  className="widget-markdown-editor"
+                  content={selectedNote.content}
+                  onChange={(content) => updateSelectedNote({ content })}
                 />
-                <div className="widget-body-shell">
-                  <MarkdownRichEditor
-                    className="widget-markdown-editor"
-                    content={selectedNote.content}
-                    onChange={(content) => updateSelectedNote({ content })}
-                  />
-                </div>
-              </>
+              </div>
             ) : (
               <div className="empty-widget">
                 <p>아직 메모가 없어요.</p>

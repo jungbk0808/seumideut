@@ -509,7 +509,7 @@ button {
 .widget-editor {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   padding: 17px 18px 0;
 }
 
@@ -526,19 +526,78 @@ button {
   margin: 0;
 }
 
+.widget-title-area {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.widget-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #1f2933;
+  font-size: 15px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header .widget-title {
+  font-size: 15px;
+}
+
+.widget-title.placeholder {
+  color: #9aa6b2;
+}
+
+.title-edit-button {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: #7a8794;
+}
+
+.title-edit-button:hover:not(:disabled) {
+  color: #1f2933;
+}
+
+.title-edit-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.widget-title-edit {
+  min-width: 0;
+  flex: 1;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  border: 1.5px solid #2f5d7c;
+  border-radius: 6px;
+  padding: 0 6px 0 10px;
+  background: #fbfcfd;
+}
+
 .widget-title-input {
-  width: 100%;
+  min-width: 0;
+  flex: 1;
   border: 0;
   outline: none;
   background: transparent;
   color: #1f2933;
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.widget-title-input {
-  height: 52px;
-  border-bottom: 1px solid #d9e0e7;
-  font-size: 18px;
-  font-weight: 700;
+.title-confirm-button {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: #2f5d7c;
 }
 
 .widget-body-shell {
