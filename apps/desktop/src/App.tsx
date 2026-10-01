@@ -36,6 +36,16 @@ import {
 import { MarkdownRichEditor } from "./MarkdownRichEditor";
 import { SettingsPanel, type SyncState } from "./SettingsPanel";
 import {
+  type Account,
+  type AuthProviderId,
+  AuthNotConfiguredError,
+  SYNC_REQUIRES_ACCOUNT,
+  loadAccount,
+  saveAccount,
+  signIn,
+  signOut,
+} from "./account";
+import {
   WIDGET_NAVIGATE_EVENT,
   openFullMemoWindow,
   openWidgetMemoWindow,
@@ -303,6 +313,9 @@ export default function App() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [fullPanel, setFullPanel] = useState<FullPanel>("editor");
+  const [account, setAccount] = useState<Account | null>(loadAccount);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(
@@ -719,8 +732,37 @@ export default function App() {
     );
   };
 
+  const handleSignIn = async (providerId: AuthProviderId) => {
+    if (isSigningIn) return;
+
+    setAuthError(null);
+    setIsSigningIn(true);
+
+    try {
+      const nextAccount = await signIn(providerId);
+      saveAccount(nextAccount);
+      setAccount(nextAccount);
+    } catch (error) {
+      setAuthError(
+        error instanceof AuthNotConfiguredError
+          ? "소셜 로그인은 아직 연결되지 않았어요."
+          : "로그인하지 못했어요. 다시 시도해 주세요.",
+      );
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    signOut();
+    setAccount(null);
+    setAuthError(null);
+  };
+
+  const isSyncAvailable = !SYNC_REQUIRES_ACCOUNT || account !== null;
+
   const handleSync = async () => {
-    if (syncState === "syncing") return;
+    if (syncState === "syncing" || !isSyncAvailable) return;
 
     setSyncState("syncing");
 
@@ -1183,6 +1225,14 @@ export default function App() {
 
         {fullPanel === "settings" ? (
           <SettingsPanel
+            account={account}
+            isSigningIn={isSigningIn}
+            authError={authError}
+            onSignIn={(providerId) => {
+              void handleSignIn(providerId);
+            }}
+            onSignOut={handleSignOut}
+            isSyncAvailable={isSyncAvailable}
             syncState={syncState}
             lastSyncedText={lastSyncedAt ? formatRelativeTime(lastSyncedAt) : null}
             storageDir={storageSettings?.effectiveDir ?? null}

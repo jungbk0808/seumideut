@@ -1,6 +1,19 @@
+import {
+  AUTH_PROVIDERS,
+  type Account,
+  type AuthProviderId,
+  getProviderLabel,
+} from "./account";
+
 export type SyncState = "idle" | "syncing" | "failed";
 
 type SettingsPanelProps = {
+  account: Account | null;
+  isSigningIn: boolean;
+  authError: string | null;
+  onSignIn: (providerId: AuthProviderId) => void;
+  onSignOut: () => void;
+  isSyncAvailable: boolean;
   syncState: SyncState;
   lastSyncedText: string | null;
   storageDir: string | null;
@@ -11,7 +24,12 @@ type SettingsPanelProps = {
   onChangeFolder: () => void;
 };
 
-function getSyncDescription(syncState: SyncState, lastSyncedText: string | null) {
+function getSyncDescription(
+  isSyncAvailable: boolean,
+  syncState: SyncState,
+  lastSyncedText: string | null,
+) {
+  if (!isSyncAvailable) return "로그인 후 사용할 수 있어요";
   if (syncState === "syncing") return "동기화 중...";
   if (syncState === "failed") return "동기화하지 못했어요. 다시 시도해 주세요.";
 
@@ -21,6 +39,12 @@ function getSyncDescription(syncState: SyncState, lastSyncedText: string | null)
 }
 
 export function SettingsPanel({
+  account,
+  isSigningIn,
+  authError,
+  onSignIn,
+  onSignOut,
+  isSyncAvailable,
   syncState,
   lastSyncedText,
   storageDir,
@@ -35,19 +59,63 @@ export function SettingsPanel({
       <h2 className="settings-title">설정</h2>
 
       <div className="settings-section">
+        <span className="settings-section-label">계정</span>
+        <div className="settings-card">
+          {account ? (
+            <div className="settings-row">
+              <div className="settings-row-text">
+                <strong>{account.email}</strong>
+                <span>{getProviderLabel(account.provider)} 계정으로 로그인</span>
+              </div>
+              <button className="text-button" type="button" onClick={onSignOut}>
+                로그아웃
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="settings-row-text">
+                <strong>로그인되어 있지 않아요</strong>
+                <span>소셜 계정으로 로그인해 동기화를 사용하세요.</span>
+              </div>
+              <div className="social-login-buttons">
+                {AUTH_PROVIDERS.map((provider) => (
+                  <button
+                    className="social-login-button"
+                    type="button"
+                    key={provider.id}
+                    disabled={isSigningIn}
+                    onClick={() => onSignIn(provider.id)}
+                  >
+                    {isSigningIn
+                      ? "로그인 중..."
+                      : `${provider.label}로 계속하기`}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {authError && (
+            <p className="settings-error" role="alert">
+              {authError}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="settings-section">
         <span className="settings-section-label">동기화</span>
         <div className="settings-card">
           <div className="settings-row">
             <div className="settings-row-text">
               <strong>수동 동기화</strong>
               <span role={syncState === "failed" ? "alert" : undefined}>
-                {getSyncDescription(syncState, lastSyncedText)}
+                {getSyncDescription(isSyncAvailable, syncState, lastSyncedText)}
               </span>
             </div>
             <button
               className="text-button"
               type="button"
-              disabled={syncState === "syncing"}
+              disabled={!isSyncAvailable || syncState === "syncing"}
               onClick={onSync}
             >
               {syncState === "syncing" ? "동기화 중..." : "지금 동기화"}
