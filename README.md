@@ -24,6 +24,31 @@ idea2planning/ 기획 산출물
 
 다른 세션에서 Git 작업을 시작할 때는 루트 `AGENTS.md`와 함께 `docs/git-workflow.md`를 확인합니다. Codex가 새 작업을 맡을 때는 작업 전용 `codex/<type>/<short-topic>` 브랜치를 먼저 만드는 규칙도 이 문서에 포함되어 있습니다.
 
+## 개발 환경 준비
+
+Windows 기준입니다. 브라우저에서 화면만 확인한다면 Node.js만 있으면 되고, Tauri 데스크톱 창으로 실행하려면 Rust와 C++ 빌드 도구도 필요합니다.
+
+1. Node.js 설치
+2. Visual Studio Build Tools 설치 (Tauri 데스크톱 빌드용)
+   - 설치할 때 "C++를 사용한 데스크톱 개발" 워크로드를 선택합니다.
+   - 이미 Visual Studio가 설치되어 있다면 건너뜁니다.
+3. Rust 설치 (Tauri 데스크톱 빌드용)
+
+   ```bash
+   winget install Rustlang.Rustup
+   ```
+
+   `winget`을 쓸 수 없으면 [rustup.rs](https://rustup.rs)에서 `rustup-init.exe`를 받아 기본값(MSVC)으로 설치합니다. 설치 후 `cargo --version`이 나오는지 확인합니다.
+
+   설치 직후에는 PATH가 반영되지 않아 `cargo`를 찾지 못할 수 있습니다. 터미널이나 VS Code를 완전히 닫았다가 다시 실행하세요.
+4. 의존성 설치
+
+   ```bash
+   npm --prefix apps/desktop install
+   ```
+
+`tauri` 명령을 찾을 수 없다는 오류는 4번 의존성 설치를 하지 않았을 때, `cargo metadata ... program not found` 오류는 Rust가 없거나 PATH가 반영되지 않았을 때 나옵니다. 첫 Tauri 빌드는 Rust 크레이트를 내려받고 컴파일하느라 몇 분 걸립니다.
+
 ## 개발 명령
 
 ```bash
