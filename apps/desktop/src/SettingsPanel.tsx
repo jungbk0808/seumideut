@@ -141,8 +141,8 @@ export function SettingsPanel({
             </button>
           </div>
           <p className="settings-help">
-            메모가 이 폴더에 파일로 저장됩니다. 폴더를 바꾸면 이후 저장부터
-            적용됩니다.
+            메모가 이 폴더에 메모마다 .md 파일로 저장됩니다. 폴더를 바꾸면 기존
+            메모도 새 폴더로 옮겨집니다.
           </p>
           {folderError && (
             <p className="settings-error" role="alert">
