@@ -228,7 +228,8 @@ fn set_storage_dir(
     let current_path = store_path(&app)?;
     let target_path = target_dir.join(STORE_FILE_NAME);
 
-    // Carry existing notes over so switching folders never drops data.
+    // Move existing notes into the new folder. The old file is removed only after
+    // the new one is written, so a failed move never drops data.
     if current_path != target_path {
         if let Ok(current_store) = read_store_from_path(&current_path) {
             let next_store = match read_store_from_path(&target_path) {
@@ -237,6 +238,7 @@ fn set_storage_dir(
             };
 
             write_store_to_path(&target_path, &next_store)?;
+            let _ = fs::remove_file(&current_path);
         }
     }
 
