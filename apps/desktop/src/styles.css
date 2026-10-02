@@ -139,6 +139,7 @@ button {
   place-items: center;
   border: 1px solid transparent;
   border-radius: 6px;
+  padding: 0;
   color: #435160;
   background: transparent;
 }
@@ -613,7 +614,6 @@ button {
   flex: none;
   width: 22px;
   height: 22px;
-  padding: 0;
   color: #2f5d7c;
 }
 
