@@ -58,7 +58,7 @@ function createWindow(label: string, url: string, mode: "widget" | "full") {
     ...WINDOW_OPTIONS[mode],
     url,
     decorations: false,
-    transparent: true,
+    transparent: false,
     shadow: true,
     resizable: true,
   });
