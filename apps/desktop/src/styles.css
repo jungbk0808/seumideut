@@ -718,27 +718,36 @@ button {
   list-style: none;
 }
 
-.markdown-rich-surface li[data-type="taskItem"] {
+.markdown-rich-surface ul[data-type="taskList"] > li {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
-.markdown-rich-surface li[data-type="taskItem"] > label {
+.markdown-rich-surface ul[data-type="taskList"] > li > label {
   flex: none;
-  margin-top: 1px;
+  margin-top: 3px;
 }
 
-.markdown-rich-surface li[data-type="taskItem"] > div {
+.markdown-rich-surface ul[data-type="taskList"] > li > div {
   min-width: 0;
   flex: 1;
 }
 
+.markdown-rich-surface ul[data-type="taskList"] > li > div > p:first-child {
+  margin: 0;
+}
+
+.markdown-rich-surface ul[data-type="taskList"] > li[data-checked="true"] > div > p:first-child {
+  color: #7a8794;
+  text-decoration: line-through;
+}
+
 .markdown-rich-surface input[type="checkbox"] {
+  display: block;
   width: 14px;
   height: 14px;
   margin: 0;
-  vertical-align: -2px;
   accent-color: #2f5d7c;
 }
 
