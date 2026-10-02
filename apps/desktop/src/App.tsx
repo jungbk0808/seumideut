@@ -1094,7 +1094,7 @@ export default function App() {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={handleCommitTitleEdit}
                 >
-                  <Check size={14} aria-hidden="true" />
+                  <Check size={12} aria-hidden="true" />
                 </button>
               </div>
             ) : (
