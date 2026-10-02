@@ -872,8 +872,13 @@ button {
   justify-content: space-between;
   gap: 12px;
   border-top: 1px solid #e0e5ea;
-  padding: 0 14px;
+  padding: 0 4px;
   background: #f7f9fb;
+}
+
+.widget-footer .text-button,
+.widget-footer .danger-button {
+  padding: 0 10px;
 }
 
 .settings-panel {
