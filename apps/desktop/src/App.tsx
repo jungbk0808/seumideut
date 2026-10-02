@@ -46,6 +46,7 @@ import {
 } from "./account";
 import {
   WIDGET_NAVIGATE_EVENT,
+  WIDGET_WINDOW_SIZE,
   openFullMemoWindow,
   openWidgetMemoWindow,
 } from "./windows";
@@ -64,7 +65,7 @@ type LaunchContext = {
 
 const WINDOW_SIZES: Record<ViewMode, { width: number; height: number }> = {
   full: { width: 1080, height: 720 },
-  widget: { width: 430, height: 520 },
+  widget: WIDGET_WINDOW_SIZE,
 };
 
 function countWithoutWhitespace(value: string) {
@@ -306,6 +307,8 @@ export default function App() {
   const [isPinReady, setIsPinReady] = useState(false);
   const [isPinUpdating, setIsPinUpdating] = useState(false);
   const [pinError, setPinError] = useState(false);
+  const [isWidgetScrollEdgeHovered, setIsWidgetScrollEdgeHovered] =
+    useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
   const [markdownViewMode, setMarkdownViewMode] =
     useState<MarkdownViewMode>("preview");
@@ -334,6 +337,7 @@ export default function App() {
   const saveVersionRef = useRef(0);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const widgetTitleRef = useRef<HTMLInputElement>(null);
+  const widgetBodyRef = useRef<HTMLDivElement>(null);
   const isTitleEditCancelledRef = useRef(false);
   const widgetNavigateRef = useRef<(noteId: string | null) => Promise<void>>(
     async () => {},
@@ -522,6 +526,39 @@ export default function App() {
 
     return () => {
       isMounted = false;
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "widget") return;
+
+    const updateScrollbarHover = (event: PointerEvent) => {
+      const editor = widgetBodyRef.current?.querySelector<HTMLElement>(
+        ".widget-markdown-editor",
+      );
+      if (!editor || editor.scrollHeight <= editor.clientHeight) {
+        setIsWidgetScrollEdgeHovered(false);
+        return;
+      }
+
+      const bounds = editor.getBoundingClientRect();
+      setIsWidgetScrollEdgeHovered(
+        event.clientX >= bounds.right - 18 &&
+          event.clientX <= bounds.right + 12 &&
+          event.clientY >= bounds.top &&
+          event.clientY <= bounds.bottom,
+      );
+    };
+    const resetScrollbarHover = () => setIsWidgetScrollEdgeHovered(false);
+
+    document.addEventListener("pointermove", updateScrollbarHover);
+    document.addEventListener("pointerleave", resetScrollbarHover);
+    window.addEventListener("blur", resetScrollbarHover);
+
+    return () => {
+      document.removeEventListener("pointermove", updateScrollbarHover);
+      document.removeEventListener("pointerleave", resetScrollbarHover);
+      window.removeEventListener("blur", resetScrollbarHover);
     };
   }, [viewMode]);
 
@@ -1147,9 +1184,9 @@ export default function App() {
 
           <div className="widget-editor">
             {selectedNote ? (
-              <div className="widget-body-shell">
+              <div className="widget-body-shell" ref={widgetBodyRef}>
                 <MarkdownRichEditor
-                  className="widget-markdown-editor"
+                  className={`widget-markdown-editor${isWidgetScrollEdgeHovered ? " scrollbar-edge-hover" : ""}`}
                   content={selectedNote.content}
                   onChange={(content) => updateSelectedNote({ content })}
                 />

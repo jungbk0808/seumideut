@@ -6,14 +6,17 @@ const MAIN_WIDGET_WINDOW_LABEL = "main";
 const WIDGET_WINDOW_LABEL = "widget";
 
 export const WIDGET_NAVIGATE_EVENT = "memo-widget-navigate";
+export const WIDGET_WINDOW_SIZE = {
+  width: 350,
+  height: 420,
+  minWidth: 320,
+  minHeight: 360,
+};
 
 const WINDOW_OPTIONS = {
   widget: {
     title: "스미듯",
-    width: 430,
-    height: 520,
-    minWidth: 320,
-    minHeight: 520,
+    ...WIDGET_WINDOW_SIZE,
   },
   full: {
     title: "스미듯 · 전체 메모",
