@@ -149,6 +149,19 @@ button {
   background: #ffffff;
 }
 
+.pin-icon-unpinned {
+  transform: rotate(45deg);
+}
+
+.pin-button.pin-button-error {
+  border-color: #e4b9b9;
+  color: #a03a3a;
+}
+
+.pin-button:disabled {
+  cursor: default;
+}
+
 .close-button:hover {
   border-color: #e4b9b9;
   background: #fff3f3;

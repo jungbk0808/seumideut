@@ -6,7 +6,6 @@ import {
   CodeXml,
   Newspaper,
   Pencil,
-  Pin,
   Plus,
   Search,
   Trash2,
@@ -303,6 +302,10 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isWindowPinned, setIsWindowPinned] = useState(false);
+  const [isPinReady, setIsPinReady] = useState(false);
+  const [isPinUpdating, setIsPinUpdating] = useState(false);
+  const [pinError, setPinError] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("loading");
   const [markdownViewMode, setMarkdownViewMode] =
     useState<MarkdownViewMode>("preview");
@@ -497,6 +500,28 @@ export default function App() {
     return () => {
       isSubscribed = false;
       unlistenSelectEvent?.();
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "widget" || !isTauriRuntime()) return;
+
+    let isMounted = true;
+
+    void getCurrentWindow()
+      .isAlwaysOnTop()
+      .then((isPinned) => {
+        if (isMounted) setIsWindowPinned(isPinned);
+      })
+      .catch(() => {
+        if (isMounted) setPinError(true);
+      })
+      .finally(() => {
+        if (isMounted) setIsPinReady(true);
+      });
+
+    return () => {
+      isMounted = false;
     };
   }, [viewMode]);
 
@@ -947,6 +972,23 @@ export default function App() {
     }
   };
 
+  const handleToggleWindowPin = async () => {
+    if (!isPinReady || isPinUpdating || !isTauriRuntime()) return;
+
+    setIsPinUpdating(true);
+    setPinError(false);
+    const nextPinned = !isWindowPinned;
+
+    try {
+      await getCurrentWindow().setAlwaysOnTop(nextPinned);
+      setIsWindowPinned(nextPinned);
+    } catch {
+      setPinError(true);
+    } finally {
+      setIsPinUpdating(false);
+    }
+  };
+
   const handleStartWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
     if (!isTauriRuntime() || event.button !== 0) return;
 
@@ -1044,8 +1086,41 @@ export default function App() {
               </>
             )}
             <div className="header-actions">
-              <button className="icon-button" type="button" aria-label="상단 고정">
-                <Pin size={16} aria-hidden="true" />
+              <button
+                className={`icon-button pin-button${pinError ? " pin-button-error" : ""}`}
+                type="button"
+                aria-label={
+                  pinError
+                    ? "상단 고정 변경 실패, 다시 시도"
+                    : isWindowPinned
+                      ? "상단 고정 해제"
+                      : "상단 고정"
+                }
+                aria-pressed={isWindowPinned}
+                title={
+                  !isTauriRuntime()
+                    ? "상단 고정은 데스크톱 앱에서 사용할 수 있어요"
+                    : pinError
+                      ? "상단 고정을 변경하지 못했어요. 다시 시도해 주세요"
+                      : isWindowPinned
+                        ? "상단 고정 해제"
+                        : "상단 고정"
+                }
+                disabled={!isTauriRuntime() || !isPinReady || isPinUpdating}
+                onClick={() => {
+                  void handleToggleWindowPin();
+                }}
+              >
+                {isWindowPinned ? (
+                  <img src="/pin-pinned.svg" alt="" draggable={false} />
+                ) : (
+                  <img
+                    className="pin-icon-unpinned"
+                    src="/pin-unpinned.svg"
+                    alt=""
+                    draggable={false}
+                  />
+                )}
               </button>
               <button
                 className="icon-button"
