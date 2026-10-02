@@ -48,6 +48,7 @@ import {
   WIDGET_NAVIGATE_EVENT,
   WIDGET_WINDOW_SIZE,
   openFullMemoWindow,
+  openNewWidgetMemoWindow,
   openWidgetMemoWindow,
 } from "./windows";
 
@@ -61,6 +62,7 @@ type LaunchContext = {
   viewMode: ViewMode;
   requestedNoteId: string | null;
   forceNewNote: boolean;
+  keepInitialPosition: boolean;
 };
 
 const WINDOW_SIZES: Record<ViewMode, { width: number; height: number }> = {
@@ -98,6 +100,7 @@ function getLaunchContext(): LaunchContext {
     viewMode: params.get("view") === "full" ? "full" : "widget",
     requestedNoteId: params.get("noteId"),
     forceNewNote: params.get("new") === "1",
+    keepInitialPosition: params.get("positioned") === "1",
   };
 }
 
@@ -429,6 +432,12 @@ export default function App() {
         const restoredNotes = sortByUpdatedAt(
           store.notes.filter((note) => note.deletedAt === null),
         );
+        const currentDraft = notesRef.current.find(
+          (note) => note.id === selectedNoteId && !isPersistableNote(note),
+        );
+        if (currentDraft && !store.notes.some((note) => note.id === currentDraft.id)) {
+          restoredNotes.unshift(currentDraft);
+        }
         const fallbackSelectedNoteId =
           selectedNoteId ||
           launchContext.requestedNoteId ||
@@ -626,7 +635,9 @@ export default function App() {
         const size = WINDOW_SIZES[viewMode];
 
         await currentWindow.setSize(new LogicalSize(size.width, size.height));
-        await currentWindow.center();
+        if (!launchContext.keepInitialPosition) {
+          await currentWindow.center();
+        }
       } catch {
         // Browser-only development does not expose the Tauri window API.
       }
@@ -728,12 +739,7 @@ export default function App() {
   };
 
   const handleCreateNote = () => {
-    if (viewMode === "widget") {
-      void widgetNavigateRef.current(null);
-      return;
-    }
-
-    void openWidgetMemoWindow();
+    void openNewWidgetMemoWindow();
   };
 
   const handleSelectNote = (noteId: string) => {
@@ -1163,6 +1169,7 @@ export default function App() {
                 className="icon-button"
                 type="button"
                 aria-label="새 메모"
+                title="새 메모"
                 onClick={handleCreateNote}
               >
                 <Plus size={16} aria-hidden="true" />
