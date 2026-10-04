@@ -327,6 +327,8 @@ export default function App() {
   const saveVersionRef = useRef(0);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const widgetTitleRef = useRef<HTMLInputElement>(null);
+  const fullTitleRef = useRef<HTMLInputElement>(null);
+  const newFullNoteToFocusRef = useRef<string | null>(null);
   const isTitleEditCancelledRef = useRef(false);
   const notesRef = useRef(notes);
   notesRef.current = notes;
@@ -500,6 +502,19 @@ export default function App() {
       unlistenSelectEvent?.();
     };
   }, [viewMode]);
+
+  useEffect(() => {
+    if (
+      viewMode !== "full" ||
+      fullPanel !== "editor" ||
+      newFullNoteToFocusRef.current !== selectedNoteId
+    ) {
+      return;
+    }
+
+    fullTitleRef.current?.focus();
+    newFullNoteToFocusRef.current = null;
+  }, [viewMode, fullPanel, selectedNoteId]);
 
   useEffect(() => {
     if (viewMode !== "widget" || !isTauriRuntime()) return;
@@ -719,8 +734,21 @@ export default function App() {
     markStoreDirty();
   };
 
-  const handleCreateNote = () => {
+  const handleCreateWidgetNote = () => {
     void openNewWidgetMemoWindow();
+  };
+
+  const handleCreateFullNote = () => {
+    if (!hasLoadedStore) return;
+
+    const draftNote = createEmptyNote();
+    newFullNoteToFocusRef.current = draftNote.id;
+    setNotes((currentNotes) => [draftNote, ...currentNotes]);
+    setSelectedNoteId(draftNote.id);
+    setSearchQuery("");
+    setMarkdownViewMode("preview");
+    setFullPanel("editor");
+    markStoreDirty();
   };
 
   const handleSelectNote = (noteId: string) => {
@@ -1085,7 +1113,7 @@ export default function App() {
                 type="button"
                 aria-label="새 메모"
                 title="새 메모"
-                onClick={handleCreateNote}
+                onClick={handleCreateWidgetNote}
               >
                 <Plus size={16} aria-hidden="true" />
               </button>
@@ -1119,7 +1147,7 @@ export default function App() {
                 <button
                   className="text-button"
                   type="button"
-                  onClick={handleCreateNote}
+                  onClick={handleCreateWidgetNote}
                 >
                   새 메모 만들기
                 </button>
@@ -1197,9 +1225,10 @@ export default function App() {
             <button
               className="text-button"
               type="button"
-              onClick={handleCreateNote}
+              disabled={!hasLoadedStore}
+              onClick={handleCreateFullNote}
             >
-              메모 추가하기
+              새 메모
             </button>
             <div className="full-window-controls" role="group" aria-label="창 제어">
               <button
@@ -1302,6 +1331,7 @@ export default function App() {
               </label>
               <input
                 id="full-title"
+                ref={fullTitleRef}
                 className="full-title-input"
                 value={selectedNote.title}
                 onChange={(event) =>
@@ -1357,7 +1387,12 @@ export default function App() {
           ) : (
             <div className="empty-editor">
               <p>아직 선택된 메모가 없어요.</p>
-              <button className="text-button" type="button" onClick={handleCreateNote}>
+              <button
+                className="text-button"
+                type="button"
+                disabled={!hasLoadedStore}
+                onClick={handleCreateFullNote}
+              >
                 새 메모 만들기
               </button>
             </div>
