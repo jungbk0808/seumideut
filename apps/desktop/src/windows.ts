@@ -1,13 +1,26 @@
-import { emitTo } from "@tauri-apps/api/event";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
+import { emitTo, listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import {
+  currentMonitor,
+  getCurrentWindow,
+  monitorFromPoint,
+} from "@tauri-apps/api/window";
+import {
+  findAdjacentWidgetPosition,
+  findWidgetShowingNote,
+  type WidgetIdentity,
+  type WindowRect,
+} from "./widgetPlacement";
 
 const FULL_WINDOW_LABEL = "full";
 const MAIN_WIDGET_WINDOW_LABEL = "main";
 const WIDGET_WINDOW_LABEL = "widget";
 const WIDGET_WINDOW_GAP = 12;
 
-export const WIDGET_NAVIGATE_EVENT = "memo-widget-navigate";
+export const WIDGET_IDENTITY_REQUEST_EVENT = "memo-widget-identity-request";
+export const WIDGET_IDENTITY_RESPONSE_EVENT = "memo-widget-identity-response";
+export type WidgetIdentityRequest = { requestId: string; replyTo: string };
+export type WidgetIdentityResponse = WidgetIdentity & { requestId: string };
 export const WIDGET_WINDOW_SIZE = {
   width: 350,
   height: 420,
@@ -39,7 +52,11 @@ function buildAppUrl(params: Record<string, string>) {
   return `index.html?${urlParams.toString()}`;
 }
 
-function openBrowserWindow(params: Record<string, string>, openNew = false) {
+function openBrowserWindow(
+  params: Record<string, string>,
+  openNew = false,
+  targetName?: string,
+) {
   const nextUrl = new URL(window.location.href);
   const windowSize =
     params.view === "full"
@@ -58,11 +75,11 @@ function openBrowserWindow(params: Record<string, string>, openNew = false) {
   }
   const openedWindow = window.open(
     nextUrl.toString(),
-    openNew
+    targetName ?? (openNew
       ? `memo-widget-${crypto.randomUUID()}`
       : params.view === "full"
         ? "memo-full"
-        : "memo-widget",
+        : "memo-widget"),
     `width=${windowSize.width},height=${windowSize.height}${newWindowPosition}`,
   );
   openedWindow?.focus();
@@ -85,32 +102,105 @@ function createWindow(
   });
 }
 
-async function getAdjacentWidgetPosition() {
-  const source = getCurrentWindow();
-  const [sourcePosition, sourceSize, monitor] = await Promise.all([
+async function getAdjacentWidgetPosition(
+  source: WebviewWindow = getCurrentWebviewWindow(),
+  occupied: WebviewWindow[] = [source],
+) {
+  const [sourcePosition, sourceSize] = await Promise.all([
     source.outerPosition(),
     source.outerSize(),
-    currentMonitor(),
   ]);
+  const monitor =
+    (await monitorFromPoint(
+      sourcePosition.x + sourceSize.width / 2,
+      sourcePosition.y + sourceSize.height / 2,
+    )) ?? (await currentMonitor());
   if (!monitor) return null;
 
   const scale = monitor.scaleFactor;
-  const gap = WIDGET_WINDOW_GAP * scale;
-  const widgetWidth = WIDGET_WINDOW_SIZE.width * scale;
-  const widgetHeight = WIDGET_WINDOW_SIZE.height * scale;
-  const { position, size } = monitor.workArea;
-  const workRight = position.x + size.width;
-  const workBottom = position.y + size.height;
-  const right = sourcePosition.x + sourceSize.width + gap;
-  const left = sourcePosition.x - widgetWidth - gap;
-  const x = right + widgetWidth <= workRight
-    ? right
-    : left >= position.x
-      ? left
-      : Math.max(position.x, Math.min(right, workRight - widgetWidth));
-  const y = Math.max(position.y, Math.min(sourcePosition.y, workBottom - widgetHeight));
+  const occupiedRects = (
+    await Promise.all(
+      occupied.map(async (window) => {
+        try {
+          const [position, size] = await Promise.all([
+            window.outerPosition(),
+            window.outerSize(),
+          ]);
+          return { x: position.x, y: position.y, width: size.width, height: size.height };
+        } catch {
+          return null;
+        }
+      }),
+    )
+  ).filter((rect): rect is WindowRect => rect !== null);
+  const position = findAdjacentWidgetPosition(
+    {
+      x: sourcePosition.x,
+      y: sourcePosition.y,
+      width: sourceSize.width,
+      height: sourceSize.height,
+    },
+    occupiedRects,
+    {
+      x: monitor.workArea.position.x,
+      y: monitor.workArea.position.y,
+      width: monitor.workArea.size.width,
+      height: monitor.workArea.size.height,
+    },
+    {
+      width: WIDGET_WINDOW_SIZE.width * scale,
+      height: WIDGET_WINDOW_SIZE.height * scale,
+    },
+    WIDGET_WINDOW_GAP * scale,
+  );
 
-  return { x: Math.round(x / scale), y: Math.round(y / scale) };
+  return { x: Math.round(position.x / scale), y: Math.round(position.y / scale) };
+}
+
+function isWidgetWindow(window: WebviewWindow) {
+  return (
+    window.label === MAIN_WIDGET_WINDOW_LABEL ||
+    window.label === WIDGET_WINDOW_LABEL ||
+    window.label.startsWith("widget-")
+  );
+}
+
+async function getWidgetIdentities(windows: WebviewWindow[]) {
+  const requestId = crypto.randomUUID();
+  const identities = new Map<string, WidgetIdentity>();
+  let resolveWhenComplete: (() => void) | null = null;
+  const unlisten = await listen<WidgetIdentityResponse>(
+    WIDGET_IDENTITY_RESPONSE_EVENT,
+    ({ payload }) => {
+      if (payload.requestId !== requestId) return;
+      identities.set(payload.label, payload);
+      if (identities.size === windows.length) resolveWhenComplete?.();
+    },
+  );
+
+  try {
+    await Promise.all(
+      windows.map((window) =>
+        emitTo(window.label, WIDGET_IDENTITY_REQUEST_EVENT, {
+          requestId,
+          replyTo: getCurrentWindow().label,
+        } satisfies WidgetIdentityRequest).catch(() => {}),
+      ),
+    );
+    if (identities.size < windows.length) {
+      await new Promise<void>((resolve) => {
+        const timeout = window.setTimeout(resolve, 250);
+        resolveWhenComplete = () => {
+          window.clearTimeout(timeout);
+          resolve();
+        };
+      });
+    }
+  } finally {
+    unlisten();
+  }
+
+  return [...identities.values()];
 }
 
 export async function openNewWidgetMemoWindow() {
@@ -168,22 +258,38 @@ export async function openWidgetMemoWindow(noteId?: string) {
   const url = buildAppUrl(params);
 
   if (!isTauriRuntime()) {
-    openBrowserWindow(params);
+    openBrowserWindow(
+      params,
+      true,
+      noteId ? `memo-widget-${noteId}` : undefined,
+    );
     return;
   }
 
-  // The configured main window is the first widget; "widget" is used after it closes.
-  const existingWindow =
-    (await WebviewWindow.getByLabel(MAIN_WIDGET_WINDOW_LABEL)) ??
-    (await WebviewWindow.getByLabel(WIDGET_WINDOW_LABEL));
+  const widgetWindows = (await WebviewWindow.getAll()).filter(isWidgetWindow);
+  const identities = await getWidgetIdentities(widgetWindows);
+  const matchingLabel = findWidgetShowingNote(identities, noteId ?? null);
+  const matchingWindow = widgetWindows.find((window) => window.label === matchingLabel);
 
-  if (existingWindow) {
-    await existingWindow.setFocus();
-    await emitTo(existingWindow.label, WIDGET_NAVIGATE_EVENT, {
-      noteId: noteId ?? null,
-    });
+  if (matchingWindow) {
+    await matchingWindow.setFocus();
     return;
   }
 
-  createWindow(WIDGET_WINDOW_LABEL, url, "widget");
+  const anchor = widgetWindows[0];
+  let position: { x: number; y: number } | null = null;
+  if (anchor) {
+    try {
+      position = await getAdjacentWidgetPosition(anchor, widgetWindows);
+    } catch {
+      // If window geometry is unavailable, let the OS place the new widget.
+    }
+  }
+
+  createWindow(
+    anchor ? `widget-${crypto.randomUUID()}` : WIDGET_WINDOW_LABEL,
+    url,
+    "widget",
+    position ?? undefined,
+  );
 }

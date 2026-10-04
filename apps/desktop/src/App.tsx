@@ -1,13 +1,16 @@
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import {
   Check,
   CodeXml,
+  Copy,
+  Minus,
   Newspaper,
   Pencil,
   Plus,
   Search,
+  Square,
   Trash2,
   X,
 } from "lucide-react";
@@ -40,8 +43,11 @@ import {
 } from "./notePresentation";
 import { SettingsPanel } from "./SettingsPanel";
 import {
-  WIDGET_NAVIGATE_EVENT,
+  WIDGET_IDENTITY_REQUEST_EVENT,
+  WIDGET_IDENTITY_RESPONSE_EVENT,
   WIDGET_WINDOW_SIZE,
+  type WidgetIdentityRequest,
+  type WidgetIdentityResponse,
   openFullMemoWindow,
   openNewWidgetMemoWindow,
   openWidgetMemoWindow,
@@ -294,6 +300,7 @@ export default function App() {
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isWindowPinned, setIsWindowPinned] = useState(false);
+  const [isFullWindowMaximized, setIsFullWindowMaximized] = useState(false);
   const [isPinReady, setIsPinReady] = useState(false);
   const [isPinUpdating, setIsPinUpdating] = useState(false);
   const [pinError, setPinError] = useState(false);
@@ -324,11 +331,10 @@ export default function App() {
   const widgetTitleRef = useRef<HTMLInputElement>(null);
   const widgetBodyRef = useRef<HTMLDivElement>(null);
   const isTitleEditCancelledRef = useRef(false);
-  const widgetNavigateRef = useRef<(noteId: string | null) => Promise<void>>(
-    async () => {},
-  );
   const notesRef = useRef(notes);
   notesRef.current = notes;
+  const selectedNoteIdRef = useRef(selectedNoteId);
+  selectedNoteIdRef.current = selectedNoteId;
 
   useEffect(() => {
     let isMounted = true;
@@ -523,6 +529,67 @@ export default function App() {
   useEffect(() => {
     if (viewMode !== "widget") return;
 
+    if (!isTauriRuntime()) {
+      window.name = selectedNoteId
+        ? `memo-widget-${selectedNoteId}`
+        : "memo-widget-empty";
+    }
+  }, [viewMode, selectedNoteId]);
+
+  useEffect(() => {
+    if (viewMode !== "widget" || !isTauriRuntime()) return;
+
+    let isSubscribed = true;
+    let unlistenRequest: (() => void) | null = null;
+
+    void listen<WidgetIdentityRequest>(
+      WIDGET_IDENTITY_REQUEST_EVENT,
+      ({ payload }) => {
+        if (!isSubscribed) return;
+        void emitTo(payload.replyTo, WIDGET_IDENTITY_RESPONSE_EVENT, {
+          requestId: payload.requestId,
+          label: getCurrentWindow().label,
+          noteId: selectedNoteIdRef.current || null,
+        } satisfies WidgetIdentityResponse);
+      },
+    ).then((unlisten) => {
+      if (isSubscribed) unlistenRequest = unlisten;
+      else unlisten();
+    });
+
+    return () => {
+      isSubscribed = false;
+      unlistenRequest?.();
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "full" || !isTauriRuntime()) return;
+
+    let isSubscribed = true;
+    let unlistenResize: (() => void) | null = null;
+    const currentWindow = getCurrentWindow();
+    const refreshMaximized = () => {
+      void currentWindow.isMaximized().then((maximized) => {
+        if (isSubscribed) setIsFullWindowMaximized(maximized);
+      });
+    };
+
+    refreshMaximized();
+    void currentWindow.onResized(refreshMaximized).then((unlisten) => {
+      if (isSubscribed) unlistenResize = unlisten;
+      else unlisten();
+    });
+
+    return () => {
+      isSubscribed = false;
+      unlistenResize?.();
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (viewMode !== "widget") return;
+
     const updateScrollbarHover = (event: PointerEvent) => {
       const editor = widgetBodyRef.current?.querySelector<HTMLElement>(
         ".widget-markdown-editor",
@@ -550,27 +617,6 @@ export default function App() {
       document.removeEventListener("pointermove", updateScrollbarHover);
       document.removeEventListener("pointerleave", resetScrollbarHover);
       window.removeEventListener("blur", resetScrollbarHover);
-    };
-  }, [viewMode]);
-
-  useEffect(() => {
-    if (viewMode !== "widget" || !isTauriRuntime()) return;
-
-    let isSubscribed = true;
-    let unlistenNavigateEvent: (() => void) | null = null;
-
-    void listen<{ noteId: string | null }>(WIDGET_NAVIGATE_EVENT, ({ payload }) => {
-      if (isSubscribed) {
-        void widgetNavigateRef.current(payload.noteId);
-      }
-    }).then((unlisten) => {
-      if (isSubscribed) unlistenNavigateEvent = unlisten;
-      else unlisten();
-    });
-
-    return () => {
-      isSubscribed = false;
-      unlistenNavigateEvent?.();
     };
   }, [viewMode]);
 
@@ -882,36 +928,6 @@ export default function App() {
     }
   };
 
-  widgetNavigateRef.current = async (noteId) => {
-    if (!hasLoadedStore || noteId === selectedNoteId) return;
-    if (hasPendingSave && !(await persistCurrentStore())) return;
-
-    if (noteId === null) {
-      const draftNote = createEmptyNote();
-      setNotes((currentNotes) => [draftNote, ...currentNotes]);
-      setSelectedNoteId(draftNote.id);
-      setSaveStatus("idle");
-      isTitleEditCancelledRef.current = false;
-      setTitleDraft("");
-      setEditingTitleNoteId(draftNote.id);
-      return;
-    }
-
-    try {
-      const store = await loadNoteStore();
-      const restoredNotes = sortByUpdatedAt(
-        store.notes.filter((note) => note.deletedAt === null),
-      );
-      if (!restoredNotes.some((note) => note.id === noteId)) return;
-
-      setNotes(restoredNotes);
-      setSelectedNoteId(noteId);
-      setSaveStatus("saved");
-    } catch {
-      setSaveStatus("failed");
-    }
-  };
-
   const handleOpenFullMemoWindow = async () => {
     if (hasPendingSave && !(await persistCurrentStore())) return;
 
@@ -953,6 +969,18 @@ export default function App() {
     } finally {
       setIsPinUpdating(false);
     }
+  };
+
+  const handleMinimizeFullWindow = async () => {
+    if (!isTauriRuntime()) return;
+    await getCurrentWindow().minimize();
+  };
+
+  const handleToggleFullWindowMaximize = async () => {
+    if (!isTauriRuntime()) return;
+    const currentWindow = getCurrentWindow();
+    await currentWindow.toggleMaximize();
+    setIsFullWindowMaximized(await currentWindow.isMaximized());
   };
 
   const handleStartWindowDrag = (event: ReactPointerEvent<HTMLElement>) => {
@@ -1168,7 +1196,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${isFullWindowMaximized ? " full-window-maximized" : ""}`}>
       <section className="full-view" aria-label="전체 메모 관리">
         <header
           className="app-header full-header"
@@ -1203,26 +1231,50 @@ export default function App() {
               </>
             )}
             <button
-              className="icon-button"
+              className="text-button"
               type="button"
-              aria-label="새 메모"
-              title="새 메모"
               onClick={handleCreateNote}
             >
-              <Plus size={16} aria-hidden="true" />
+              메모 추가하기
             </button>
-            <button
-              className="icon-button close-button"
-              type="button"
-              aria-label="닫기"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => {
-                void handleCloseWindow();
-                handleBrowserCloseWindow();
-              }}
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
+            <div className="full-window-controls" role="group" aria-label="창 제어">
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="최소화"
+                title="최소화"
+                disabled={!isTauriRuntime()}
+                onClick={() => { void handleMinimizeFullWindow(); }}
+              >
+                <Minus size={16} aria-hidden="true" />
+              </button>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label={isFullWindowMaximized ? "창 복원" : "최대화"}
+                title={isFullWindowMaximized ? "창 복원" : "최대화"}
+                disabled={!isTauriRuntime()}
+                onClick={() => { void handleToggleFullWindowMaximize(); }}
+              >
+                {isFullWindowMaximized ? (
+                  <Copy size={14} aria-hidden="true" />
+                ) : (
+                  <Square size={14} aria-hidden="true" />
+                )}
+              </button>
+              <button
+                className="icon-button close-button"
+                type="button"
+                aria-label="닫기"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => {
+                  void handleCloseWindow();
+                  handleBrowserCloseWindow();
+                }}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </header>
 

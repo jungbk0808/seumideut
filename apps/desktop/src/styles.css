@@ -90,6 +90,17 @@ button {
   gap: 12px;
 }
 
+.full-header .header-actions {
+  gap: 10px;
+}
+
+.full-window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+}
+
 .drag-region {
   align-self: stretch;
   flex: 1;
@@ -166,6 +177,12 @@ button {
   border-color: #e4b9b9;
   background: #fff3f3;
   color: #a03a3a;
+}
+
+.full-window-maximized .full-view {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .full-view {
