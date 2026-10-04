@@ -938,50 +938,6 @@ button {
   gap: 16px;
 }
 
-.settings-row-text {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.settings-row-text strong {
-  color: #1f2933;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.settings-row-text span {
-  color: #7a8794;
-  font-size: 12px;
-}
-
-.social-login-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.social-login-button {
-  width: 240px;
-  height: 38px;
-  border: 1px solid #e0e5ea;
-  border-radius: 6px;
-  background: #fbfcfd;
-  color: #2f5d7c;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.social-login-button:hover:not(:disabled) {
-  border-color: #b7ccdc;
-  background: #eef6fb;
-}
-
-.social-login-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .settings-path-field {
   min-width: 0;
   flex: 1;

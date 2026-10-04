@@ -535,6 +535,38 @@ mod tests {
     }
 
     #[test]
+    fn rapid_edits_restore_the_latest_saved_content() {
+        let dir = test_dir("rapid-edits");
+        let mut first = note("one", "메모", "2026-09-27T00:00:01.000Z", None);
+        first.content = "첫 입력".to_string();
+        let mut latest = first.clone();
+        latest.content = "첫 입력 다음 입력 최종".to_string();
+        latest.updated_at = "2026-09-27T00:00:02.000Z".to_string();
+
+        apply_notes(&dir, &[first]).unwrap();
+        apply_notes(&dir, &[latest.clone()]).unwrap();
+
+        let restored = latest_notes(&read_disk_notes(&dir));
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].content, latest.content);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unwritable_store_path_reports_a_save_error() {
+        let dir = test_dir("save-error");
+        fs::write(&dir, "not a directory").unwrap();
+
+        assert!(apply_notes(
+            &dir,
+            &[note("one", "메모", "2026-09-27T00:00:01.000Z", None)]
+        )
+        .is_err());
+        assert_eq!(fs::read_to_string(&dir).unwrap(), "not a directory");
+        let _ = fs::remove_file(&dir);
+    }
+
+    #[test]
     fn same_title_gets_a_distinct_file_name() {
         let dir = test_dir("collision");
         let notes = vec![

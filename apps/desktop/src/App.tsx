@@ -33,17 +33,12 @@ import {
   saveNoteStore,
 } from "./storage";
 import { MarkdownRichEditor } from "./MarkdownRichEditor";
-import { SettingsPanel, type SyncState } from "./SettingsPanel";
 import {
-  type Account,
-  type AuthProviderId,
-  AuthNotConfiguredError,
-  SYNC_REQUIRES_ACCOUNT,
-  loadAccount,
-  saveAccount,
-  signIn,
-  signOut,
-} from "./account";
+  countCharacters,
+  filterNotes,
+  getEmptyListMessage,
+} from "./notePresentation";
+import { SettingsPanel } from "./SettingsPanel";
 import {
   WIDGET_NAVIGATE_EVENT,
   WIDGET_WINDOW_SIZE,
@@ -69,14 +64,6 @@ const WINDOW_SIZES: Record<ViewMode, { width: number; height: number }> = {
   full: { width: 1080, height: 720 },
   widget: WIDGET_WINDOW_SIZE,
 };
-
-function countWithoutWhitespace(value: string) {
-  return Array.from(value.replace(/\s/g, "")).length;
-}
-
-function countWithWhitespace(value: string) {
-  return Array.from(value).length;
-}
 
 function createEmptyNote(): Note {
   const now = new Date().toISOString();
@@ -322,11 +309,6 @@ export default function App() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [fullPanel, setFullPanel] = useState<FullPanel>("editor");
-  const [account, setAccount] = useState<Account | null>(loadAccount);
-  const [isSigningIn, setIsSigningIn] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [syncState, setSyncState] = useState<SyncState>("idle");
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(
     null,
   );
@@ -695,24 +677,13 @@ export default function App() {
     [notes],
   );
 
-  const filteredNotes = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) return activeNotes;
-
-    return activeNotes.filter((note) => {
-      return (
-        note.title.toLowerCase().includes(query) ||
-        note.content.toLowerCase().includes(query)
-      );
-    });
-  }, [activeNotes, searchQuery]);
+  const filteredNotes = useMemo(
+    () => filterNotes(activeNotes, searchQuery),
+    [activeNotes, searchQuery],
+  );
 
   const counts = useMemo(
-    () => ({
-      withSpaces: countWithWhitespace(selectedNote?.content ?? ""),
-      withoutSpaces: countWithoutWhitespace(selectedNote?.content ?? ""),
-    }),
+    () => countCharacters(selectedNote?.content ?? ""),
     [selectedNote?.content],
   );
 
@@ -786,7 +757,7 @@ export default function App() {
     }
   };
 
-  const syncFromStorage = async (preferredNoteId: string) => {
+  const reloadFromStorage = async (preferredNoteId: string) => {
     const store = await loadNoteStore();
     const restoredNotes = sortByUpdatedAt(
       store.notes.filter((note) => note.deletedAt === null),
@@ -798,54 +769,6 @@ export default function App() {
         restoredNotes[0]?.id ??
         "",
     );
-  };
-
-  const handleSignIn = async (providerId: AuthProviderId) => {
-    if (isSigningIn) return;
-
-    setAuthError(null);
-    setIsSigningIn(true);
-
-    try {
-      const nextAccount = await signIn(providerId);
-      saveAccount(nextAccount);
-      setAccount(nextAccount);
-    } catch (error) {
-      setAuthError(
-        error instanceof AuthNotConfiguredError
-          ? "소셜 로그인은 아직 연결되지 않았어요."
-          : "로그인하지 못했어요. 다시 시도해 주세요.",
-      );
-    } finally {
-      setIsSigningIn(false);
-    }
-  };
-
-  const handleSignOut = () => {
-    signOut();
-    setAccount(null);
-    setAuthError(null);
-  };
-
-  const isSyncAvailable = !SYNC_REQUIRES_ACCOUNT || account !== null;
-
-  const handleSync = async () => {
-    if (syncState === "syncing" || !isSyncAvailable) return;
-
-    setSyncState("syncing");
-
-    if (hasPendingSave && !(await persistCurrentStore())) {
-      setSyncState("failed");
-      return;
-    }
-
-    try {
-      await syncFromStorage(selectedNoteId);
-      setLastSyncedAt(new Date().toISOString());
-      setSyncState("idle");
-    } catch {
-      setSyncState("failed");
-    }
   };
 
   const handleChangeFolder = async () => {
@@ -871,7 +794,7 @@ export default function App() {
       }
 
       setStorageSettings(await changeStorageDir(selectedFolder));
-      await syncFromStorage(selectedNoteId);
+      await reloadFromStorage(selectedNoteId);
     } catch {
       setFolderError("폴더를 바꾸지 못했어요. 다른 폴더를 선택해 주세요.");
     } finally {
@@ -1337,30 +1260,19 @@ export default function App() {
                 </button>
               ))
             ) : (
-              <p className="empty-list">검색 결과가 없어요</p>
+              <p className="empty-list">
+                {getEmptyListMessage(activeNotes.length, searchQuery)}
+              </p>
             )}
           </div>
         </aside>
 
         {fullPanel === "settings" ? (
           <SettingsPanel
-            account={account}
-            isSigningIn={isSigningIn}
-            authError={authError}
-            onSignIn={(providerId) => {
-              void handleSignIn(providerId);
-            }}
-            onSignOut={handleSignOut}
-            isSyncAvailable={isSyncAvailable}
-            syncState={syncState}
-            lastSyncedText={lastSyncedAt ? formatRelativeTime(lastSyncedAt) : null}
             storageDir={storageSettings?.effectiveDir ?? null}
             isFolderChangeAvailable={storageSettings !== null}
             isChangingFolder={isChangingFolder}
             folderError={folderError}
-            onSync={() => {
-              void handleSync();
-            }}
             onChangeFolder={() => {
               void handleChangeFolder();
             }}

@@ -6,6 +6,7 @@
   "scripts": {
     "dev:desktop": "npm --prefix apps/desktop run dev",
     "build": "npm --prefix apps/desktop run build",
+    "test": "npm --prefix apps/desktop run test",
     "build:desktop": "npm --prefix apps/desktop run build",
     "preview:desktop": "npm --prefix apps/desktop run preview",
     "desktop:tauri": "npm --prefix apps/desktop run tauri --",
