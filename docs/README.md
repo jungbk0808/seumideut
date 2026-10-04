@@ -5,6 +5,7 @@
 ## 문서 목록
 
 - `git-workflow.md`: 사람/Codex 작업별 브랜치 이름, 커밋 메시지, 커밋 전 확인 규칙
+- `mvp-qa-checklist.md`: MVP 자동 검증 결과, Windows 수동 확인 절차, 7일 실사용 기록
 
 ## 다른 세션을 위한 안내
 

@@ -61,6 +61,8 @@ npm --prefix apps/desktop install
 npm run dev:desktop
 npm run desktop:tauri:dev
 npm run desktop:tauri:info
+npm test
+npm run build
 ```
 
 루트 스크립트는 `npm --prefix apps/desktop ...`로 데스크톱 앱 명령을 위임합니다. 의존성 설치와 `node_modules`는 각 앱 폴더 안에서 관리합니다.
@@ -73,6 +75,8 @@ npm run tauri:dev
 ```
 
 `npm run dev:desktop`은 브라우저에서 프론트엔드를 확인할 때 사용하고, `npm run desktop:tauri:dev`는 Tauri 데스크톱 창으로 실행할 때 사용합니다. 데스크톱 앱 개발 서버는 `http://127.0.0.1:1420`을 사용합니다.
+
+저장소 Rust 테스트는 `apps/desktop/src-tauri`에서 `cargo test --locked`로 실행합니다. 실제 Windows 창 확인과 7일 사용 기록은 `docs/mvp-qa-checklist.md`를 따릅니다.
 
 ## 디자인
 
