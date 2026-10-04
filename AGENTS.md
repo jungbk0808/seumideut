@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Build a lightweight local-first desktop memo app MVP that the owner can personally use within 1-2 weeks.
+Build a lightweight local-first memo app MVP. The desktop core is implemented; the revised MVP also includes database integration and an independent web app before the owner's 7-day use period.
 
 The product identity is not a full-featured all-in-one notes app. It is a small desktop-first memo tool that can stay near the user's working surface, support fast writing, and show live character counts.
 
@@ -27,7 +27,7 @@ When the user gives Codex a new single implementation or documentation task, cre
 
 ## Design Reference
 
-Use this Figma file when implementing or reviewing UI:
+Use this Figma file when implementing or reviewing the desktop UI. A web screen reference has not been defined yet:
 
 - Figma: https://www.figma.com/design/Qdw5rvoIKeMyKIhGGLCqky
 - Primary page: `Editable v2`
@@ -63,6 +63,7 @@ The MVP should prioritize:
 - Live character counter
 - Full memo management screen for search/list/edit
 - Simple, calm UI with low friction
+- Database-backed memo storage and an independent web app before 7-day use
 
 The widget is the main experience. The full memo screen is secondary and should appear when the user chooses `전체 메모 열기`.
 
@@ -94,12 +95,12 @@ Include:
 - Delete confirmation
 - Always-on-top toggle
 - Basic empty/error states
+- Database integration with a safe policy for existing local `.md` notes
+- Web memo list, search, create, edit, delete, character counts, and Markdown view
+- Desktop/web integration verification before the 7-day use period
 
 Exclude:
 
-- Login/accounts
-- Cloud sync
-- Web app
 - Mobile app
 - Team/workspace features
 - Real-time collaboration
@@ -108,6 +109,8 @@ Exclude:
 - Plugin marketplace
 - Complex permission management
 - Block-editor style rich document editing
+
+Decide whether the web app runs only on the same PC or lets the owner use the same notes on other devices before selecting the database, hosting, authentication, or sync approach. Preserve the desktop's existing local notes in either case.
 
 ## Data Model
 
@@ -150,6 +153,9 @@ Keep `id`, `updatedAt`, and `schemaVersion` from the beginning so future sync/mi
 10. Add memo list, selection, and search.
 11. Add always-on-top behavior.
 12. Run save/restore and character-count tests.
+13. Decide web access, database location, and the relationship to local `.md` notes.
+14. Implement database storage and the web app's core memo flows.
+15. Verify desktop/web data behavior, then begin the owner's 7-day use period.
 
 ## Quality Bar
 
@@ -164,7 +170,8 @@ Acceptance criteria:
 - Character counts are accurate for Korean, English, numbers, spaces, tabs, and line breaks.
 - `전체 메모 열기` shows list/search/edit in the 2-pane management screen.
 - Delete requires confirmation.
-- MVP can be used by the owner for 7 consecutive days.
+- Database and web behavior match the agreed access and data policy.
+- The owner can use the completed desktop/web MVP for 7 consecutive days.
 
 ## Tone For Future Planning
 
