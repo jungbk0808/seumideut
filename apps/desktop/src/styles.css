@@ -822,10 +822,11 @@ button {
 
 .widget-markdown-editor {
   height: 100%;
+  scrollbar-gutter: stable;
 }
 
 .widget-markdown-editor::-webkit-scrollbar {
-  width: 5px;
+  width: 8px;
 }
 
 .widget-markdown-editor::-webkit-scrollbar-track {
@@ -833,38 +834,19 @@ button {
 }
 
 .widget-markdown-editor::-webkit-scrollbar-thumb {
+  border: 2.5px solid transparent;
   border-radius: 999px;
   background: #aeb9c4;
+  background-clip: content-box;
 }
 
 .widget-markdown-editor::-webkit-scrollbar-button {
   display: none;
 }
 
-.widget-markdown-editor.scrollbar-edge-hover::-webkit-scrollbar {
-  width: 14px;
-}
-
-.widget-markdown-editor.scrollbar-edge-hover::-webkit-scrollbar-thumb {
-  border: 4px solid transparent;
+.widget-markdown-editor::-webkit-scrollbar-thumb:hover {
+  border-width: 1px;
   background: #8797a6;
-  background-clip: content-box;
-}
-
-.widget-markdown-editor.scrollbar-edge-hover::-webkit-scrollbar-button:vertical {
-  display: block;
-  height: 14px;
-  background-color: #eef2f5;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.widget-markdown-editor.scrollbar-edge-hover::-webkit-scrollbar-button:vertical:decrement {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1.5 5.5 4 3l2.5 2.5' fill='none' stroke='%235b6876' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
-.widget-markdown-editor.scrollbar-edge-hover::-webkit-scrollbar-button:vertical:increment {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M1.5 2.5 4 5l2.5-2.5' fill='none' stroke='%235b6876' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .widget-markdown-editor .markdown-rich-surface {
