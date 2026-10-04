@@ -1,4 +1,5 @@
 import Link from "@tiptap/extension-link";
+import HardBreak from "@tiptap/extension-hard-break";
 import Placeholder from "@tiptap/extension-placeholder";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
@@ -51,6 +52,46 @@ const ExitBlockquoteOnEnter = Extension.create({
   },
 });
 
+const SingleLineHardBreak = HardBreak.extend({
+  renderMarkdown: () => "\n",
+});
+
+const EnterLineBreaks = Extension.create({
+  name: "enterLineBreaks",
+  priority: 1100,
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { selection } = this.editor.state;
+        if (
+          !selection.empty ||
+          selection.$from.parent.type.name !== "paragraph" ||
+          this.editor.isActive("blockquote") ||
+          this.editor.isActive("listItem") ||
+          this.editor.isActive("taskItem") ||
+          this.editor.isActive("codeBlock")
+        ) {
+          return false;
+        }
+
+        if (selection.$from.nodeBefore?.type.name === "hardBreak") {
+          return this.editor
+            .chain()
+            .deleteRange({ from: selection.from - 1, to: selection.from })
+            .splitBlock()
+            .command(({ tr, dispatch }) => {
+              if (dispatch) tr.setStoredMarks([]);
+              return true;
+            })
+            .run();
+        }
+
+        return this.editor.commands.setHardBreak();
+      },
+    };
+  },
+});
+
 export function MarkdownRichEditor({
   ariaLabel = "메모 본문",
   className = "",
@@ -70,8 +111,11 @@ export function MarkdownRichEditor({
     () => [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4] },
+        hardBreak: false,
         link: false,
       }),
+      SingleLineHardBreak,
+      EnterLineBreaks,
       ExitBlockquoteOnEnter,
       InlineStyleMark,
       Link.configure({
@@ -96,6 +140,7 @@ export function MarkdownRichEditor({
         placeholder,
       }),
       Markdown.configure({
+        markedOptions: { gfm: true, breaks: true },
         indentation: {
           style: "space",
           size: 2,

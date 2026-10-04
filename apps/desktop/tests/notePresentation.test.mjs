@@ -30,15 +30,43 @@ const notes = [
   },
 ];
 
-test("counts the saved body with and without spaces, tabs, and line breaks", () => {
+test("counts visible text and source line breaks while excluding markdown syntax", () => {
   assert.deepEqual(countCharacters(""), { withSpaces: 0, withoutSpaces: 0 });
   assert.deepEqual(countCharacters("가A1 나\tB\n다"), {
     withSpaces: 9,
     withoutSpaces: 6,
   });
   assert.deepEqual(countCharacters("# 제목\n- **항목**"), {
-    withSpaces: 13,
-    withoutSpaces: 10,
+    withSpaces: 5,
+    withoutSpaces: 4,
+  });
+  assert.deepEqual(countCharacters("**굵게**\n\n[링크](https://example.com)"), {
+    withSpaces: 6,
+    withoutSpaces: 4,
+  });
+  assert.deepEqual(countCharacters("- [x] 할 일\n- [ ] 다음"), {
+    withSpaces: 6,
+    withoutSpaces: 4,
+  });
+  assert.deepEqual(countCharacters('<strong style="color: red">가</strong>\n나'), {
+    withSpaces: 3,
+    withoutSpaces: 2,
+  });
+  assert.deepEqual(countCharacters("가  \n  \n나"), {
+    withSpaces: 4,
+    withoutSpaces: 2,
+  });
+  assert.deepEqual(countCharacters("##### 제목"), {
+    withSpaces: 8,
+    withoutSpaces: 7,
+  });
+  assert.deepEqual(countCharacters("```\n가\n```"), {
+    withSpaces: 3,
+    withoutSpaces: 1,
+  });
+  assert.deepEqual(countCharacters('<p style="color: red">가<br>나</p>'), {
+    withSpaces: 3,
+    withoutSpaces: 2,
   });
 });
 

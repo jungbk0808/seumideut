@@ -709,12 +709,15 @@ button {
   font-size: 14px;
 }
 
-.markdown-rich-surface p,
 .markdown-rich-surface ul,
 .markdown-rich-surface ol,
 .markdown-rich-surface blockquote,
 .markdown-rich-surface pre {
   margin: 0 0 14px;
+}
+
+.markdown-rich-surface p {
+  margin: 0;
 }
 
 .markdown-rich-surface ul,
