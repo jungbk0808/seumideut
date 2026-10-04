@@ -8,6 +8,35 @@ const STYLE_PROPERTIES = [
   "font-style",
   "text-decoration-line",
 ] as const;
+const STYLEABLE_TAGS = new Set([
+  "span",
+  "b",
+  "strong",
+  "i",
+  "em",
+  "u",
+  "s",
+  "strike",
+  "del",
+  "mark",
+  "small",
+  "sub",
+  "sup",
+  "a",
+  "code",
+  "p",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "li",
+  "ul",
+  "ol",
+]);
 
 function isSafeColor(value: string) {
   return (
@@ -77,9 +106,16 @@ export const InlineStyleMark = Mark.create({
   parseHTML() {
     return [
       {
-        tag: "span[style]",
-        getAttrs: (element) =>
-          sanitizeInlineStyle(element as HTMLElement) ? {} : false,
+        tag: "*[style]",
+        priority: 1000,
+        consuming: false,
+        getAttrs: (element) => {
+          const htmlElement = element as HTMLElement;
+          return STYLEABLE_TAGS.has(htmlElement.tagName.toLowerCase()) &&
+            sanitizeInlineStyle(htmlElement)
+            ? {}
+            : false;
+        },
       },
     ];
   },
