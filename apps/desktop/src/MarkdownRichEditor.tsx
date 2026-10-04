@@ -7,6 +7,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Extension, type Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef } from "react";
+import { InlineStyleMark } from "./InlineStyleMark";
 
 type MarkdownRichEditorProps = {
   ariaLabel?: string;
@@ -72,6 +73,7 @@ export function MarkdownRichEditor({
         link: false,
       }),
       ExitBlockquoteOnEnter,
+      InlineStyleMark,
       Link.configure({
         autolink: true,
         defaultProtocol: "https",
