@@ -101,6 +101,7 @@ export function MarkdownRichEditor({
   placeholder = "여기에 바로 메모를 입력하세요.",
 }: MarkdownRichEditorProps) {
   const contentRef = useRef(content);
+  const containerRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
 
   useEffect(() => {
@@ -188,8 +189,42 @@ export function MarkdownRichEditor({
     });
   }, [content, editor]);
 
+  useEffect(() => {
+    if (className !== "widget-markdown-editor") return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateScrollbarHover = (event: PointerEvent) => {
+      const bounds = container.getBoundingClientRect();
+      const scrollbarStart = bounds.left + container.clientLeft + container.clientWidth;
+      const overScrollbar =
+        container.scrollHeight > container.clientHeight &&
+        event.clientX >= scrollbarStart &&
+        event.clientX < bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY < bounds.bottom;
+
+      container.classList.toggle("scrollbar-hovered", overScrollbar);
+    };
+    const clearScrollbarHover = () => {
+      container.classList.remove("scrollbar-hovered");
+    };
+
+    document.addEventListener("pointermove", updateScrollbarHover, true);
+    document.documentElement.addEventListener("pointerleave", clearScrollbarHover);
+    window.addEventListener("blur", clearScrollbarHover);
+
+    return () => {
+      document.removeEventListener("pointermove", updateScrollbarHover, true);
+      document.documentElement.removeEventListener("pointerleave", clearScrollbarHover);
+      window.removeEventListener("blur", clearScrollbarHover);
+    };
+  }, [className]);
+
   return (
     <div
+      ref={containerRef}
       className={`markdown-rich-editor ${className}`}
       onClick={() => editor?.chain().focus().run()}
     >
