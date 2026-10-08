@@ -2,7 +2,7 @@
 
 스미듯: 떠오른 생각을 언제 어디서나 가볍게 남기는 기록 공간
 
-현재 구현된 앱은 Tauri + React + TypeScript 기반 로컬 우선 데스크톱 앱입니다. 개정 MVP에는 DB 연동과 독립 웹 앱을 추가하며, 통합 검증 후 7일 실사용을 시작합니다. 웹 접속 범위와 DB 방식은 결정 대기 중입니다.
+현재 구현된 앱은 Tauri + React + TypeScript 기반 로컬 우선 데스크톱 앱입니다. 개정 MVP에는 Supabase DB 연동과 독립 웹 앱을 추가하며, Google 로그인으로 PC·웹에서 같은 메모를 사용하는 방향을 정했습니다. 향후 모바일 앱의 동기화도 고려합니다. 외부 서비스 초기 설정을 진행했으며, 앱 연결·동기화 구현과 통합 검증 후 7일 실사용을 시작합니다.
 
 > 스쳐 지나갈 생각들이 머무는 공간.
 
@@ -21,8 +21,20 @@ idea2planning/ 기획 산출물
 
 - 브랜치/커밋 규칙: `docs/git-workflow.md` (사람 작업과 Codex 작업의 브랜치 prefix 구분 포함)
 - 문서 인덱스: `docs/README.md`
+- 외부 서비스 설정: [Supabase·Google 로그인 설정 방법](docs/external-service-setup.md) (설정 절차, 남은 수동 설정, 연결·검증 상태)
 
 다른 세션에서 Git 작업을 시작할 때는 루트 `AGENTS.md`와 함께 `docs/git-workflow.md`를 확인합니다. Codex가 새 작업을 맡을 때는 작업 전용 `codex/<type>/<short-topic>` 브랜치를 먼저 만드는 규칙도 이 문서에 포함되어 있습니다.
+
+## 외부 서비스 설정
+
+Supabase 프로젝트 생성과 Google 로그인 provider 저장 후, Supabase의 **Authentication → URL Configuration**에서 개발용 로그인 복귀 주소를 등록하고 저장합니다.
+
+| 항목 | 값 |
+|---|---|
+| Site URL | `http://127.0.0.1:1420` |
+| Redirect URLs | `http://127.0.0.1:1420/**` 추가 |
+
+이 값은 현재 브라우저 개발 화면으로 돌아오는 설정입니다. 웹 배포와 데스크톱 앱 복귀 주소는 구현 시 별도로 등록합니다. 가입부터 Google 설정까지의 전체 절차와 남은 작업은 [외부 서비스 설정 문서](docs/external-service-setup.md)를 참고하세요.
 
 ## 개발 환경 준비
 
