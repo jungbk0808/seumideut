@@ -22,6 +22,11 @@ idea2planning/ 기획 산출물
 - 브랜치/커밋 규칙: `docs/git-workflow.md` (사람 작업과 Codex 작업의 브랜치 prefix 구분 포함)
 - 문서 인덱스: `docs/README.md`
 - 외부 서비스 설정: [Supabase·Google 로그인 설정 방법](docs/external-service-setup.md) (설정 절차, 남은 수동 설정, 연결·검증 상태)
+- DB 연결 기반: [환경변수·Google 로그인·메모 접근 권한](supabase/README.md) (로그인 구현과 검증 상태)
+
+### 데스크톱 개발 화면과 독립 웹 앱
+
+`npm run dev:desktop`으로 브라우저에 뜨는 화면은 Tauri 창 안에 들어갈 **데스크톱 React UI를 확인하는 개발용 화면**입니다. 독립 웹 서비스가 아닙니다. 향후 웹 버전은 `apps/web`에 별도 앱으로 만들고, 화면과 스타일을 독립적으로 구성합니다. 두 앱은 같은 계정·메모 DB를 사용하되 데스크톱 위젯·창 제어 UI를 웹에 가져올 필요는 없습니다.
 
 다른 세션에서 Git 작업을 시작할 때는 루트 `AGENTS.md`와 함께 `docs/git-workflow.md`를 확인합니다. Codex가 새 작업을 맡을 때는 작업 전용 `codex/<type>/<short-topic>` 브랜치를 먼저 만드는 규칙도 이 문서에 포함되어 있습니다.
 
@@ -33,8 +38,9 @@ Supabase 프로젝트 생성과 Google 로그인 provider 저장 후, Supabase�
 |---|---|
 | Site URL | `http://127.0.0.1:1420` |
 | Redirect URLs | `http://127.0.0.1:1420/**` 추가 |
+| Redirect URLs (Windows 앱) | `http://127.0.0.1:1421/auth/callback/**` 추가 |
 
-이 값은 현재 브라우저 개발 화면으로 돌아오는 설정입니다. 웹 배포와 데스크톱 앱 복귀 주소는 구현 시 별도로 등록합니다. 가입부터 Google 설정까지의 전체 절차와 남은 작업은 [외부 서비스 설정 문서](docs/external-service-setup.md)를 참고하세요.
+1420은 브라우저 개발 화면, 1421은 Windows 앱의 외부 브라우저 로그인 복귀 주소입니다. 소유자가 환경변수·SQL·Windows 복귀 주소 설정을 완료했다고 보고했습니다. 앱의 `전체 메모 → 설정 → Google로 로그인`에서 로그인할 수 있습니다. Windows 세션은 앱 데이터 폴더에 암호화해 보관하며 기존 `.md` 메모는 유지됩니다. 메모 동기화와 독립 웹 앱은 다음 구현 단계입니다. 전체 절차는 [외부 서비스 설정 문서](docs/external-service-setup.md)를 참고하세요.
 
 ## 개발 환경 준비
 
