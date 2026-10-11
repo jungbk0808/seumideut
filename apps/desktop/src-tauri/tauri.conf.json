@@ -14,15 +14,15 @@
       {
         "label": "main",
         "title": "스미듯",
-        "width": 350,
-        "height": 420,
+        "width": 320,
+        "height": 368,
         "minWidth": 320,
-        "minHeight": 360,
+        "minHeight": 368,
         "resizable": true,
         "alwaysOnTop": false,
         "decorations": false,
-        "transparent": false,
-        "shadow": true
+        "transparent": true,
+        "shadow": false
       }
     ],
     "security": {

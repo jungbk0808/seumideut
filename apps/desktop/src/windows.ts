@@ -21,11 +21,12 @@ export const WIDGET_IDENTITY_REQUEST_EVENT = "memo-widget-identity-request";
 export const WIDGET_IDENTITY_RESPONSE_EVENT = "memo-widget-identity-response";
 export type WidgetIdentityRequest = { requestId: string; replyTo: string };
 export type WidgetIdentityResponse = WidgetIdentity & { requestId: string };
+// Keep the existing 304×352 memo surface, with an 8px transparent shadow gutter.
 export const WIDGET_WINDOW_SIZE = {
-  width: 350,
-  height: 420,
+  width: 320,
+  height: 368,
   minWidth: 320,
-  minHeight: 360,
+  minHeight: 368,
 };
 
 const WINDOW_OPTIONS = {
@@ -96,8 +97,8 @@ function createWindow(
     ...position,
     url,
     decorations: false,
-    transparent: false,
-    shadow: true,
+    transparent: mode === "widget",
+    shadow: mode !== "widget",
     resizable: true,
   });
 }

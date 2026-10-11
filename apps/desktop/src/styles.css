@@ -510,9 +510,16 @@ button {
   opacity: 0.5;
 }
 
-.widget-mode {
+html:has(.widget-mode),
+body:has(.widget-mode),
+#root:has(.widget-mode) {
+  background: transparent;
+}
+
+.app-shell.widget-mode {
   display: block;
-  padding: 0;
+  padding: 8px;
+  background: transparent;
 }
 
 .widget-view {
@@ -526,7 +533,12 @@ button {
   border: 1px solid #cfd6de;
   border-radius: 8px;
   background: #fbfcfd;
-  box-shadow: 0 18px 60px rgba(31, 41, 55, 0.16);
+  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.18);
+  transition: box-shadow 120ms ease;
+}
+
+.widget-mode[data-active="false"] .widget-view {
+  box-shadow: none;
 }
 
 .widget-header {
@@ -1074,15 +1086,5 @@ button {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 4px 8px;
-  }
-
-  .widget-mode {
-    padding: 0;
-  }
-
-  .widget-view {
-    min-height: 100vh;
-    border: 0;
-    border-radius: 0;
   }
 }

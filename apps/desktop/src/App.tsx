@@ -300,6 +300,7 @@ export default function App() {
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isWindowPinned, setIsWindowPinned] = useState(false);
+  const [isWindowActive, setIsWindowActive] = useState(() => document.hasFocus());
   const [isFullWindowMaximized, setIsFullWindowMaximized] = useState(false);
   const [isPinReady, setIsPinReady] = useState(false);
   const [isPinUpdating, setIsPinUpdating] = useState(false);
@@ -519,6 +520,43 @@ export default function App() {
   }, [viewMode, fullPanel, selectedNoteId]);
 
   useEffect(() => {
+    if (viewMode !== "widget") return;
+
+    let isMounted = true;
+    let focusVersion = 0;
+    let unlisten: (() => void) | undefined;
+    const updateFocus = (focused: boolean) => {
+      focusVersion += 1;
+      if (isMounted) setIsWindowActive(focused);
+    };
+    const handleFocus = () => updateFocus(true);
+    const handleBlur = () => updateFocus(false);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("blur", handleBlur);
+
+    if (isTauriRuntime()) {
+      void (async () => {
+        const currentWindow = getCurrentWindow();
+        unlisten = await currentWindow.onFocusChanged(({ payload }) => updateFocus(payload));
+        if (!isMounted) {
+          unlisten();
+          return;
+        }
+        const version = focusVersion;
+        const focused = await currentWindow.isFocused();
+        if (focusVersion === version) updateFocus(focused);
+      })().catch((error) => console.warn("Could not read the widget focus state", error));
+    }
+
+    return () => {
+      isMounted = false;
+      unlisten?.();
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
     if (viewMode !== "widget" || !isTauriRuntime()) return;
 
     let isMounted = true;
@@ -642,7 +680,6 @@ export default function App() {
       try {
         const currentWindow = getCurrentWindow();
         const size = WINDOW_SIZES[viewMode];
-
         await currentWindow.setSize(new LogicalSize(size.width, size.height));
         if (!launchContext.keepInitialPosition) {
           await currentWindow.center();
@@ -1018,7 +1055,7 @@ export default function App() {
 
   if (viewMode === "widget") {
     return (
-      <main className="app-shell widget-mode">
+      <main className="app-shell widget-mode" data-active={isWindowActive}>
         <section className="widget-view" aria-label="위젯형 빠른 메모">
           <header
             className="app-header widget-header"
