@@ -1138,6 +1138,7 @@ export default function App() {
             {selectedNote ? (
               <div className="widget-body-shell">
                 <MarkdownRichEditor
+                  key={selectedNote.id}
                   className="widget-markdown-editor"
                   content={selectedNote.content}
                   onChange={(content) => updateSelectedNote({ content })}
@@ -1356,6 +1357,7 @@ export default function App() {
                 />
               ) : (
                 <MarkdownRichEditor
+                  key={selectedNote.id}
                   className="full-body-preview"
                   content={selectedNote.content}
                   onChange={(content) => updateSelectedNote({ content })}

@@ -9,6 +9,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Extension, type Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef } from "react";
 import { InlineStyleMark } from "./InlineStyleMark";
+import { createRichEditorSync } from "./richEditorSync";
 
 type MarkdownRichEditorProps = {
   ariaLabel?: string;
@@ -101,6 +102,8 @@ export function MarkdownRichEditor({
   placeholder = "여기에 바로 메모를 입력하세요.",
 }: MarkdownRichEditorProps) {
   const contentRef = useRef(content);
+  contentRef.current = content;
+  const syncRef = useRef<ReturnType<typeof createRichEditorSync> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
 
@@ -161,32 +164,49 @@ export function MarkdownRichEditor({
           class: "markdown-rich-surface",
           spellcheck: "false",
         },
+        handleDOMEvents: {
+          compositionstart: () => {
+            syncRef.current?.startComposition();
+            return false;
+          },
+          compositionend: () => {
+            syncRef.current?.endComposition();
+            return false;
+          },
+        },
       },
       extensions,
-      onUpdate: ({ editor: updatedEditor }) => {
-        const nextContent = getMarkdown(updatedEditor);
-
-        contentRef.current = nextContent;
-        onChangeRef.current(nextContent);
+      onUpdate: () => {
+        syncRef.current?.update();
       },
     },
     [extensions, ariaLabel],
   );
 
   useEffect(() => {
-    if (!editor || content === contentRef.current) return;
+    if (!editor) return;
 
-    const currentContent = getMarkdown(editor);
-    if (content === currentContent) {
-      contentRef.current = content;
-      return;
-    }
-
-    contentRef.current = content;
-    editor.commands.setContent(keepDeepHeadingsLiteral(content), {
-      contentType: "markdown",
-      emitUpdate: false,
+    const sync = createRichEditorSync(contentRef.current, {
+      getContent: () => getMarkdown(editor),
+      replaceContent: (nextContent) => {
+        editor.commands.setContent(keepDeepHeadingsLiteral(nextContent), {
+          contentType: "markdown",
+          emitUpdate: false,
+        });
+      },
+      onChange: (nextContent) => onChangeRef.current(nextContent),
+      isComposing: () => editor.view.composing,
     });
+    syncRef.current = sync;
+
+    return () => {
+      sync.dispose();
+      syncRef.current = null;
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    syncRef.current?.sync(content);
   }, [content, editor]);
 
   useEffect(() => {
