@@ -14,6 +14,7 @@
     "core:window:allow-is-maximized",
     "core:window:allow-toggle-maximize",
     "core:window:allow-minimize",
+    "core:window:allow-unminimize",
     "core:window:allow-monitor-from-point",
     "core:window:allow-is-always-on-top",
     "core:window:allow-set-always-on-top",

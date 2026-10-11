@@ -240,6 +240,7 @@ export async function openFullMemoWindow(noteId?: string) {
   const existingWindow = await WebviewWindow.getByLabel(FULL_WINDOW_LABEL);
 
   if (existingWindow) {
+    await existingWindow.unminimize();
     await existingWindow.setFocus();
 
     if (noteId) {
