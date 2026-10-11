@@ -746,7 +746,9 @@ button {
 
 .markdown-rich-surface ul[data-type="taskList"] > li > label {
   flex: none;
-  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  height: 1lh;
 }
 
 .markdown-rich-surface ul[data-type="taskList"] > li > div {
