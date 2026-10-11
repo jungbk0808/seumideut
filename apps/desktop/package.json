@@ -13,6 +13,7 @@
     "tauri:info": "tauri info"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.3",
     "@tiptap/core": "^3.30.5",
@@ -30,6 +31,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

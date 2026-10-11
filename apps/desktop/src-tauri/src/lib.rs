@@ -1,4 +1,6 @@
+mod auth_storage;
 mod note_files;
+mod oauth_callback;
 
 use note_files::{
     apply_notes, latest_notes, migrate_legacy_store, move_notes, normalize_notes, read_disk_notes,
@@ -165,13 +167,20 @@ fn set_storage_dir(
 pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(()))
+        .manage(auth_storage::AuthStorageLock::default())
+        .manage(oauth_callback::OAuthCallbackState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             load_note_store,
             save_note_store,
             get_storage_settings,
-            set_storage_dir
+            set_storage_dir,
+            auth_storage::auth_storage_get,
+            auth_storage::auth_storage_set,
+            oauth_callback::start_oauth_callback,
+            oauth_callback::open_oauth_url,
+            oauth_callback::cancel_oauth_callback
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

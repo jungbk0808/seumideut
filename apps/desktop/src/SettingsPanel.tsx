@@ -1,3 +1,8 @@
+import { lazy, Suspense } from "react";
+
+// Keep the OAuth SDK out of the widget's initial bundle.
+const AccountPanel = lazy(() => import("./AccountPanel").then((module) => ({ default: module.AccountPanel })));
+
 type SettingsPanelProps = {
   storageDir: string | null;
   isFolderChangeAvailable: boolean;
@@ -16,6 +21,9 @@ export function SettingsPanel({
   return (
     <section className="settings-panel" aria-label="설정">
       <h2 className="settings-title">설정</h2>
+      <Suspense fallback={<p className="settings-help">계정 정보를 불러오는 중...</p>}>
+        <AccountPanel />
+      </Suspense>
 
       <div className="settings-section">
         <span className="settings-section-label">파일 저장 폴더</span>

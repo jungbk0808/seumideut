@@ -12,6 +12,11 @@ src-tauri/target/
 apps/*/src-tauri/target/
 apps/*/src-tauri/gen/schemas/
 
+# App connection settings (only examples belong in Git)
+.env
+.env.*
+!.env.example
+
 # Logs
 *.log
 npm-debug.log*

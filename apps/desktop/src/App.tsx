@@ -313,7 +313,9 @@ export default function App() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [fullPanel, setFullPanel] = useState<FullPanel>("editor");
+  const [fullPanel, setFullPanel] = useState<FullPanel>(() =>
+    new URLSearchParams(window.location.search).get("panel") === "settings" ? "settings" : "editor",
+  );
   const [storageSettings, setStorageSettings] = useState<StorageSettings | null>(
     null,
   );
