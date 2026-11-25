@@ -117,6 +117,7 @@ export function MarkdownRichEditor({
         heading: { levels: [1, 2, 3, 4] },
         hardBreak: false,
         link: false,
+        trailingNode: false,
       }),
       SingleLineHardBreak,
       EnterLineBreaks,

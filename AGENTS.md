@@ -35,7 +35,7 @@ Use this Figma file when implementing or reviewing the desktop UI. A web screen 
   - `Screen / Widget Quick Memo - Editable`
   - `Screen / Full Memo Management - Editable`
   - `State / Empty - Editable`
-  - `State / Delete Confirmation - Editable`
+  - `Delete confirmation / full memo only`
 - Main components:
   - `Memo v2/Button/Text`
   - `Memo v2/Button/Danger`
@@ -49,7 +49,9 @@ The `Memo v2/Icon Button/Pin` component is a variant set with `Pinned=false` and
 - `Pinned=false`: outlined diagonal/unpinned pin.
 - `Pinned=true`: filled upright/pinned pin.
 
-The widget header uses the shared `Header` component and its actions are ordered as Pin, Plus, Close. The close action is for dismissing the memo-style widget window, not deleting a memo.
+The selected widget design is `Memo / Widget / 하단 좌우` (Figma node `276:436`), based on 10A with the `02 하단 좌우` information layout. Use `Memo / Widget Header / View` and `Memo / Widget Header / Edit` for its shared headers.
+
+The white widget header contains Pin on the left, a centered title and edit button, and Close on the right. Keep the content 3px lower within the 36px header. The white 40px footer contains the memo-list icon, save status on the left, character count on the right, and Plus at the far right. Keep footer information on one line at the default width; at the minimum 240×200 size, center the save status above the character count in two rows. Long save-status text uses an ellipsis and a full-text tooltip. Deletion is available in the full memo management screen only. Close dismisses the widget window.
 
 ## Product Direction
 
@@ -76,7 +78,7 @@ The widget is the main experience. The full memo screen is secondary and should 
   - Left: search and recent memo list
   - Right: selected memo editor
 - Character count appears in the lower-right area in a subtle style.
-- Show both counts: `공백 포함 N자 · 제외 N자`.
+- Show both counts: `공백 포함 N자 / 제외 N자`.
 - Deletion must use a confirmation modal.
 - Empty, saving, saved, and save-failed states should be visible.
 
@@ -136,7 +138,7 @@ Keep `id`, `updatedAt`, and `schemaVersion` from the beginning so future sync/mi
 - Count against the note body, not the title.
 - Whitespace-included count includes spaces, tabs, and line breaks.
 - Whitespace-excluded count excludes spaces, tabs, and line breaks.
-- Empty content displays `공백 포함 0자 · 제외 0자`.
+- Empty content displays `공백 포함 0자 / 제외 0자`.
 - Update counts live while typing.
 
 ## Recommended Implementation Order

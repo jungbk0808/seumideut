@@ -315,14 +315,10 @@ button {
   min-height: 0;
   position: relative;
   display: grid;
-  grid-template-rows: auto 48px auto minmax(0, 368px) 44px 34px;
+  grid-template-rows: 48px minmax(0, 1fr) 44px 34px;
   gap: 10px;
   padding: 24px 28px 20px;
   background: #fbfcfd;
-}
-
-.full-editor > .field-label {
-  margin-bottom: 0;
 }
 
 .full-title-input,
@@ -341,10 +337,6 @@ button {
   padding: 0 14px;
   font-size: 18px;
   font-weight: 700;
-}
-
-.body-label {
-  margin-top: 6px;
 }
 
 .view-toggle {
@@ -517,23 +509,66 @@ body:has(.widget-mode),
 }
 
 .app-shell.widget-mode {
+  position: relative;
   display: block;
   padding: 8px;
   background: transparent;
 }
 
+.widget-resize-handle {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+  user-select: none;
+}
+
+.widget-resize-handle[data-direction="North"],
+.widget-resize-handle[data-direction="South"] {
+  left: 22px;
+  right: 22px;
+  height: 12px;
+  cursor: ns-resize;
+}
+
+.widget-resize-handle[data-direction="East"],
+.widget-resize-handle[data-direction="West"] {
+  top: 22px;
+  bottom: 22px;
+  width: 12px;
+  cursor: ew-resize;
+}
+
+.widget-resize-handle[data-direction="NorthEast"],
+.widget-resize-handle[data-direction="NorthWest"],
+.widget-resize-handle[data-direction="SouthEast"],
+.widget-resize-handle[data-direction="SouthWest"] {
+  width: 22px;
+  height: 22px;
+}
+
+.widget-resize-handle[data-direction^="North"] { top: 0; }
+.widget-resize-handle[data-direction^="South"] { bottom: 0; }
+.widget-resize-handle[data-direction$="East"] { right: 0; }
+.widget-resize-handle[data-direction$="West"] { left: 0; }
+.widget-resize-handle[data-direction="NorthEast"],
+.widget-resize-handle[data-direction="SouthWest"] { cursor: nesw-resize; }
+.widget-resize-handle[data-direction="NorthWest"],
+.widget-resize-handle[data-direction="SouthEast"] { cursor: nwse-resize; }
+
 .widget-view {
+  container-name: memo-widget;
+  container-type: inline-size;
   width: 100%;
   height: 100%;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 44px minmax(0, 1fr) auto 44px;
+  grid-template-rows: 36px minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid #cfd6de;
-  border-radius: 8px;
-  background: #fbfcfd;
-  box-shadow: 0 2px 8px rgba(31, 41, 55, 0.18);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(31, 41, 54, 0.1);
   transition: box-shadow 120ms ease;
 }
 
@@ -542,19 +577,38 @@ body:has(.widget-mode),
 }
 
 .widget-header {
-  min-height: 44px;
-  padding: 0 14px;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 4px;
+  padding: 6px 8px 0;
+  border-bottom: 0;
+  background: #fff;
 }
 
-.widget-header .header-actions {
-  gap: 6px;
+.widget-header > .icon-button,
+.widget-footer > .icon-button {
+  flex: none;
+}
+
+.widget-header > .icon-button img,
+.widget-footer > .icon-button img {
+  width: 16px;
+  height: 16px;
+}
+
+.widget-title-slot {
+  min-width: 0;
+  height: 28px;
+  display: grid;
+  place-items: center;
 }
 
 .widget-editor {
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  padding: 12px 14px 0;
+  padding: 12px 2px 0 14px;
 }
 
 .empty-widget {
@@ -572,8 +626,10 @@ body:has(.widget-mode),
 
 .widget-title-area {
   min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
 }
 
@@ -582,7 +638,7 @@ body:has(.widget-mode),
   margin: 0;
   overflow: hidden;
   color: #1f2933;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 22px;
   text-overflow: ellipsis;
@@ -590,7 +646,7 @@ body:has(.widget-mode),
 }
 
 .app-header .widget-title {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .widget-title.placeholder {
@@ -602,6 +658,12 @@ body:has(.widget-mode),
   width: 24px;
   height: 24px;
   color: #7a8794;
+  opacity: 0.65;
+}
+
+.title-edit-button img {
+  width: 14px;
+  height: 14px;
 }
 
 .title-edit-button:hover:not(:disabled) {
@@ -615,15 +677,12 @@ body:has(.widget-mode),
 
 .widget-title-edit {
   min-width: 0;
-  flex: 1;
-  height: 30px;
+  width: 100%;
+  height: 28px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 4px 4px 0 0;
-  padding: 0 6px 0 0;
-  background: #fff;
-  box-shadow: inset 0 -2px #2f5d7c;
+  gap: 4px;
+  box-shadow: inset 0 -1px #2f5d7c;
 }
 
 .widget-title-input {
@@ -634,15 +693,16 @@ body:has(.widget-mode),
   padding: 0;
   background: transparent;
   color: #1f2933;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 22px;
+  text-align: center;
 }
 
 .title-confirm-button {
   flex: none;
   width: 22px;
-  height: 22px;
+  height: 24px;
   color: #2f5d7c;
 }
 
@@ -899,7 +959,7 @@ body:has(.widget-mode),
 }
 
 .widget-markdown-editor .markdown-rich-surface {
-  padding: 0 0 18px;
+  padding: 0 2px 0 0;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -927,18 +987,67 @@ body:has(.widget-mode),
 }
 
 .widget-footer {
+  min-width: 0;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  border-top: 1px solid #e0e5ea;
-  padding: 0 4px;
-  background: #f7f9fb;
+  gap: 4px;
+  padding: 0 8px;
+  background: #fff;
 }
 
-.widget-footer .text-button,
-.widget-footer .danger-button {
-  padding: 0 10px;
+.widget-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 8px;
+  color: #7a8794;
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.widget-meta > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-character-count {
+  flex: none;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.widget-meta .status-retry-button {
+  color: #a03a3a;
+}
+
+@container memo-widget (max-width: 268px) {
+  .widget-meta {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    text-align: center;
+  }
+
+  .widget-meta > :first-child {
+    max-width: 100%;
+    text-align: center;
+  }
+
+  .widget-character-count {
+    margin-left: 0;
+    font-size: 9px;
+    line-height: 14px;
+  }
 }
 
 .settings-panel {

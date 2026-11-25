@@ -25,8 +25,8 @@ export type WidgetIdentityResponse = WidgetIdentity & { requestId: string };
 export const WIDGET_WINDOW_SIZE = {
   width: 320,
   height: 368,
-  minWidth: 320,
-  minHeight: 368,
+  minWidth: 240,
+  minHeight: 200,
 };
 
 const WINDOW_OPTIONS = {

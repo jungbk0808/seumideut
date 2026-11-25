@@ -7,8 +7,6 @@ import {
   Copy,
   Minus,
   Newspaper,
-  Pencil,
-  Plus,
   Search,
   Square,
   Trash2,
@@ -54,6 +52,10 @@ import {
 } from "./windows";
 
 const brandLogo = "/logo.svg";
+const WIDGET_RESIZE_DIRECTIONS = [
+  "North", "South", "East", "West",
+  "NorthEast", "NorthWest", "SouthEast", "SouthWest",
+] as const;
 
 type ViewMode = "full" | "widget";
 type MarkdownViewMode = "preview" | "source";
@@ -66,8 +68,8 @@ type LaunchContext = {
   keepInitialPosition: boolean;
 };
 
-const WINDOW_SIZES: Record<ViewMode, { width: number; height: number }> = {
-  full: { width: 1080, height: 720 },
+const WINDOW_SIZES: Record<ViewMode, { width: number; height: number; minWidth: number; minHeight: number }> = {
+  full: { width: 1080, height: 720, minWidth: 760, minHeight: 520 },
   widget: WIDGET_WINDOW_SIZE,
 };
 
@@ -680,6 +682,7 @@ export default function App() {
       try {
         const currentWindow = getCurrentWindow();
         const size = WINDOW_SIZES[viewMode];
+        await currentWindow.setMinSize(new LogicalSize(size.minWidth, size.minHeight));
         await currentWindow.setSize(new LogicalSize(size.width, size.height));
         if (!launchContext.keepInitialPosition) {
           await currentWindow.center();
@@ -1020,7 +1023,10 @@ export default function App() {
     const target = event.target as HTMLElement;
     if (target.closest("button, input, textarea")) return;
 
-    void getCurrentWindow().startDragging();
+    event.preventDefault();
+    void getCurrentWindow().startDragging().catch((error) => {
+      console.warn("Could not start window drag", error);
+    });
   };
 
   const handleBrowserCloseWindow = () => {
@@ -1034,12 +1040,13 @@ export default function App() {
       <button
         className="status-retry-button"
         type="button"
+        title={getSaveStatusText(saveStatus)}
         onClick={handleRetrySave}
       >
         {getSaveStatusText(saveStatus)}
       </button>
     ) : (
-      <span>{getSaveStatusText(saveStatus)}</span>
+      <span title={getSaveStatusText(saveStatus)}>{getSaveStatusText(saveStatus)}</span>
     );
 
   const deleteModal = deleteTargetId && (
@@ -1059,40 +1066,74 @@ export default function App() {
         <section className="widget-view" aria-label="위젯형 빠른 메모">
           <header
             className="app-header widget-header"
-            data-tauri-drag-region
             onPointerDown={handleStartWindowDrag}
           >
-            {isEditingWidgetTitle ? (
-              <div className="widget-title-edit">
-                <input
-                  ref={widgetTitleRef}
-                  className="widget-title-input"
-                  value={titleDraft}
-                  onChange={(event) => setTitleDraft(event.target.value)}
-                  onKeyDown={handleTitleKeyDown}
-                  onBlur={handleCommitTitleEdit}
-                  placeholder="제목 없음"
-                  aria-label="메모 제목"
+            <button
+              className={`icon-button pin-button${pinError ? " pin-button-error" : ""}`}
+              type="button"
+              aria-label={
+                pinError
+                  ? "상단 고정 변경 실패, 다시 시도"
+                  : isWindowPinned
+                    ? "상단 고정 해제"
+                    : "상단 고정"
+              }
+              aria-pressed={isWindowPinned}
+              title={
+                !isTauriRuntime()
+                  ? "상단 고정은 데스크톱 앱에서 사용할 수 있어요"
+                  : pinError
+                    ? "상단 고정을 변경하지 못했어요. 다시 시도해 주세요"
+                    : isWindowPinned
+                      ? "상단 고정 해제"
+                      : "상단 고정"
+              }
+              disabled={!isTauriRuntime() || !isPinReady || isPinUpdating}
+              onClick={() => {
+                void handleToggleWindowPin();
+              }}
+            >
+              {isWindowPinned ? (
+                <img src="/pin-pinned.svg" alt="" draggable={false} />
+              ) : (
+                <img
+                  className="pin-icon-unpinned"
+                  src="/widget-pin.svg"
+                  alt=""
+                  draggable={false}
                 />
-                <button
-                  className="icon-button title-confirm-button"
-                  type="button"
-                  aria-label="제목 저장"
-                  title="제목 저장"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={handleCommitTitleEdit}
-                >
-                  <Check size={12} aria-hidden="true" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="widget-title-area" data-tauri-drag-region>
+              )}
+            </button>
+            <div className="widget-title-slot">
+              {isEditingWidgetTitle ? (
+                <div className="widget-title-edit">
+                  <input
+                    ref={widgetTitleRef}
+                    className="widget-title-input"
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={handleTitleKeyDown}
+                    onBlur={handleCommitTitleEdit}
+                    placeholder="제목 없음"
+                    aria-label="메모 제목"
+                  />
+                  <button
+                    className="icon-button title-confirm-button"
+                    type="button"
+                    aria-label="제목 저장"
+                    title="제목 저장"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={handleCommitTitleEdit}
+                  >
+                    <Check size={12} aria-hidden="true" />
+                  </button>
+                </div>
+              ) : (
+                <div className="widget-title-area">
                   <h1
                     className={`widget-title ${
                       selectedNote?.title.trim() ? "" : "placeholder"
                     }`}
-                    data-tauri-drag-region
                   >
                     {selectedNote ? getNoteTitle(selectedNote) : "스미듯"}
                   </h1>
@@ -1104,71 +1145,23 @@ export default function App() {
                     disabled={!selectedNote}
                     onClick={handleStartTitleEdit}
                   >
-                    <Pencil size={14} aria-hidden="true" />
+                    <img src="/widget-edit.svg" alt="" draggable={false} />
                   </button>
                 </div>
-                <div className="drag-region" data-tauri-drag-region />
-              </>
-            )}
-            <div className="header-actions">
-              <button
-                className={`icon-button pin-button${pinError ? " pin-button-error" : ""}`}
-                type="button"
-                aria-label={
-                  pinError
-                    ? "상단 고정 변경 실패, 다시 시도"
-                    : isWindowPinned
-                      ? "상단 고정 해제"
-                      : "상단 고정"
-                }
-                aria-pressed={isWindowPinned}
-                title={
-                  !isTauriRuntime()
-                    ? "상단 고정은 데스크톱 앱에서 사용할 수 있어요"
-                    : pinError
-                      ? "상단 고정을 변경하지 못했어요. 다시 시도해 주세요"
-                      : isWindowPinned
-                        ? "상단 고정 해제"
-                        : "상단 고정"
-                }
-                disabled={!isTauriRuntime() || !isPinReady || isPinUpdating}
-                onClick={() => {
-                  void handleToggleWindowPin();
-                }}
-              >
-                {isWindowPinned ? (
-                  <img src="/pin-pinned.svg" alt="" draggable={false} />
-                ) : (
-                  <img
-                    className="pin-icon-unpinned"
-                    src="/pin-unpinned.svg"
-                    alt=""
-                    draggable={false}
-                  />
-                )}
-              </button>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="새 메모"
-                title="새 메모"
-                onClick={handleCreateWidgetNote}
-              >
-                <Plus size={16} aria-hidden="true" />
-              </button>
-              <button
-                className="icon-button close-button"
-                type="button"
-                aria-label="닫기"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => {
-                  void handleCloseWindow();
-                  handleBrowserCloseWindow();
-                }}
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
+              )}
             </div>
+            <button
+              className="icon-button close-button"
+              type="button"
+              aria-label="닫기"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => {
+                void handleCloseWindow();
+                handleBrowserCloseWindow();
+              }}
+            >
+              <img src="/widget-close.svg" alt="" draggable={false} />
+            </button>
           </header>
 
           <div className="widget-editor">
@@ -1195,33 +1188,51 @@ export default function App() {
             )}
           </div>
 
-          <div className="status-row" aria-live="polite">
-            {saveStatusContent}
-            <span>
-              공백 포함 {counts.withSpaces}자 · 제외 {counts.withoutSpaces}자
-            </span>
-          </div>
-
           <footer className="widget-footer">
             <button
-              className="text-button"
+              className="icon-button"
               type="button"
+              aria-label="전체 메모 열기"
+              title="전체 메모 열기"
               onClick={() => {
                 void handleOpenFullMemoWindow();
               }}
             >
-              전체 메모 열기
+              <img src="/widget-list.svg" alt="" draggable={false} />
             </button>
+            <div className="widget-meta" aria-live="polite">
+              {saveStatusContent}
+              <span className="widget-character-count">
+                공백 포함 {counts.withSpaces}자 / 제외 {counts.withoutSpaces}자
+              </span>
+            </div>
             <button
-              className="danger-button"
+              className="icon-button"
               type="button"
-              onClick={handleOpenDeleteModal}
-              disabled={!selectedNote}
+              aria-label="새 메모"
+              title="새 메모"
+              onClick={handleCreateWidgetNote}
             >
-              삭제
+              <img src="/widget-plus.svg" alt="" draggable={false} />
             </button>
           </footer>
         </section>
+        {isTauriRuntime() && WIDGET_RESIZE_DIRECTIONS.map((direction) => (
+          <div
+            key={direction}
+            className="widget-resize-handle"
+            data-direction={direction}
+            aria-hidden="true"
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              event.stopPropagation();
+              void getCurrentWindow().startResizeDragging(direction).catch((error) => {
+                console.warn("Could not start window resize", error);
+              });
+            }}
+          />
+        ))}
         {deleteModal}
       </main>
     );
@@ -1232,15 +1243,14 @@ export default function App() {
       <section className="full-view" aria-label="전체 메모 관리">
         <header
           className="app-header full-header"
-          data-tauri-drag-region
           onPointerDown={handleStartWindowDrag}
         >
-          <div className="brand-lockup" data-tauri-drag-region>
+          <div className="brand-lockup">
             <img className="brand-logo" src={brandLogo} alt="" draggable={false} />
-            <h1 data-tauri-drag-region>스미듯</h1>
-            <span className="brand-context" data-tauri-drag-region>전체 메모</span>
+            <h1>스미듯</h1>
+            <span className="brand-context">전체 메모</span>
           </div>
-          <div className="drag-region" data-tauri-drag-region />
+          <div className="drag-region" />
           <div className="header-actions">
             {fullPanel === "editor" && (
               <>
@@ -1366,11 +1376,9 @@ export default function App() {
         <section className="full-editor" aria-label="선택한 메모 편집">
           {selectedNote ? (
             <>
-              <label className="field-label" htmlFor="full-title">
-                제목
-              </label>
               <input
                 id="full-title"
+                aria-label="메모 제목"
                 ref={fullTitleRef}
                 className="full-title-input"
                 value={selectedNote.title}
@@ -1380,11 +1388,10 @@ export default function App() {
                 placeholder="제목 없음"
               />
 
-              <span className="field-label body-label">본문</span>
-
               {markdownViewMode === "source" ? (
                 <textarea
                   id="full-body"
+                  aria-label="메모 본문"
                   className="full-body-input"
                   value={selectedNote.content}
                   onChange={(event) =>
@@ -1421,7 +1428,7 @@ export default function App() {
               <div className="full-status-row" aria-live="polite">
                 {saveStatusContent}
                 <span>
-                  공백 포함 {counts.withSpaces}자 · 제외 {counts.withoutSpaces}자
+                  공백 포함 {counts.withSpaces}자 / 제외 {counts.withoutSpaces}자
                 </span>
               </div>
             </>
