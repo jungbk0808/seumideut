@@ -1,6 +1,8 @@
 mod auth_storage;
 mod note_files;
 mod oauth_callback;
+#[cfg(windows)]
+mod window_behavior;
 
 use note_files::{
     apply_notes, latest_notes, migrate_legacy_store, move_notes, normalize_notes, read_disk_notes,
@@ -165,6 +167,8 @@ fn set_storage_dir(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    window_behavior::set_taskbar_identity();
     tauri::Builder::default()
         .manage(Mutex::new(()))
         .manage(auth_storage::AuthStorageLock::default())
