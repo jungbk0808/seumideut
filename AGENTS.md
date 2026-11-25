@@ -172,6 +172,7 @@ Acceptance criteria:
 - Character counts are accurate for Korean, English, numbers, spaces, tabs, and line breaks.
 - `전체 메모 열기` shows list/search/edit in the 2-pane management screen.
 - Delete requires confirmation.
+- Widget movement snaps only within 4 logical pixels on either side of a screen work-area edge. Continuing to drag beyond that band must allow unrestricted off-screen movement; do not clamp the window to the display.
 - Database and web behavior match the agreed access and data policy.
 - The owner can use the completed desktop/web MVP for 7 consecutive days.
 

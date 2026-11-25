@@ -170,6 +170,10 @@ pub fn run() {
     #[cfg(windows)]
     window_behavior::set_taskbar_identity();
     tauri::Builder::default()
+        .on_page_load(|window, _payload| {
+            #[cfg(windows)]
+            window_behavior::install(&window.window());
+        })
         .manage(Mutex::new(()))
         .manage(auth_storage::AuthStorageLock::default())
         .manage(oauth_callback::OAuthCallbackState::default())
