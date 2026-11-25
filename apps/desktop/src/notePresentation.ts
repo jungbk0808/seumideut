@@ -8,7 +8,16 @@ function plainTextFromTokens(tokens: Token[]): { text: string; htmlBreaks: numbe
 
   for (const [index, token] of tokens.entries()) {
     const start = text.length;
-    if (token.type === "list") {
+    if (token.type === "list_item" && !token.task && /^\[[ xX]\][ \t]*(?=\n|$)/.test(token.text)) {
+      // marked leaves an empty parent's checkbox as text, even when it has
+      // nested items. Remove only that marker and keep counting its children.
+      const result = plainTextFromTokens(marked.lexer(
+        token.text.replace(/^\[[ xX]\][ \t]*/, ""),
+        { gfm: true, breaks: true },
+      ));
+      text += result.text;
+      htmlBreaks += result.htmlBreaks;
+    } else if (token.type === "list") {
       const result = plainTextFromTokens(token.items);
       text += result.text;
       htmlBreaks += result.htmlBreaks;
@@ -46,13 +55,31 @@ function plainTextFromTokens(tokens: Token[]): { text: string; htmlBreaks: numbe
   return { text, htmlBreaks };
 }
 
+function listSpacingBreaks(tokens: Token[]): number {
+  let breaks = 0;
+  for (const token of tokens) {
+    if (token.type === "list") {
+      // Blank source lines between sibling items control loose-list layout;
+      // the rendered checklist still has one line boundary per item.
+      for (const item of token.items.slice(0, -1)) {
+        const trailingBreaks = item.raw.match(/\n+$/)?.[0].length ?? 0;
+        breaks += Math.max(0, trailingBreaks - 1);
+      }
+      breaks += listSpacingBreaks(token.items);
+    } else if ("tokens" in token && Array.isArray(token.tokens)) {
+      breaks += listSpacingBreaks(token.tokens);
+    }
+  }
+  return breaks;
+}
+
 export function countCharacters(content: string) {
   const normalizedContent = content.replace(/\r\n?/g, "\n");
-  const { text, htmlBreaks } = plainTextFromTokens(
-    marked.lexer(normalizedContent, { gfm: true, breaks: true }),
-  );
+  const tokens = marked.lexer(normalizedContent, { gfm: true, breaks: true });
+  const { text, htmlBreaks } = plainTextFromTokens(tokens);
   const visibleText = text.replace(/\n/g, "");
-  const lineBreaks = (normalizedContent.match(/\n/g) ?? []).length + htmlBreaks;
+  const lineBreaks = (normalizedContent.match(/\n/g) ?? []).length + htmlBreaks
+    - listSpacingBreaks(tokens);
 
   return {
     withSpaces: Array.from(visibleText).length + lineBreaks,
